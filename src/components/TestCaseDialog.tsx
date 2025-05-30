@@ -50,7 +50,6 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
 
   useEffect(() => {
     if (isOpen && issue) {
-      // Reset state for new dialog open
       setGeneratedTestCases([]);
       setError(null);
       setIsLoading(true);
@@ -88,19 +87,23 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
     setIsAttaching(true);
     setError(null);
     try {
-      const simplifiedTestCases = generatedTestCases.map(tc => ({ testCaseId: tc.testCaseId, testCaseName: tc.testCaseName }));
+      // Pass the full generatedTestCases and projectId
       const result = await attachTestCasesToJiraAction(credentials, {
         issueKey: issue.key,
-        testCases: simplifiedTestCases,
+        testCases: generatedTestCases, 
         attachmentType,
+        projectId: issue.project.id, // Pass the project ID from the issue object
       });
+
       toast({
-        title: 'Success',
+        title: result.success ? 'Success' : 'Partial Success/Error',
         description: result.message,
-        variant: 'default',
-        className: "bg-green-100 border-green-300 text-green-800 dark:bg-green-900 dark:border-green-700 dark:text-green-200"
+        variant: result.success ? 'default' : 'destructive', // Adjust variant based on full success potentially
+        className: result.success ? "bg-green-100 border-green-300 text-green-800 dark:bg-green-900 dark:border-green-700 dark:text-green-200" : "",
       });
-      onClose(); // Close dialog on success
+      if (result.success) { // Could refine this condition for partial successes
+        onClose(); 
+      }
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Failed to attach test cases to Jira.');
@@ -115,7 +118,6 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
   };
   
   const handleDialogClose = () => {
-    // Reset state when dialog is explicitly closed by user
     setGeneratedTestCases([]);
     setError(null);
     setIsLoading(false);
