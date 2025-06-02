@@ -24,7 +24,6 @@ const BaseDraftTicketSchema = z.object({
   summary: z.string().describe('A concise summary for the Jira ticket.'),
   description: z.string().describe('A detailed description for the Jira ticket, outlining requirements, goals, or steps.'),
   suggestedId: z.string().optional().describe('An optional AI-suggested Jira-like ID (e.g., PROJECTKEY-123), primarily for epics or top-level stories/tasks for reference. Not for sub-tasks.'),
-  // acceptanceCriteria: z.string().optional().describe('Acceptance criteria for the ticket, if applicable, especially for Stories.'),
 });
 
 // Recursive schema for children
@@ -56,7 +55,7 @@ export type AnalyzeDocumentInput = z.infer<typeof AnalyzeDocumentInputSchema>;
 // This is similar to AnalyzeDocumentOutputSchema but represents the state before creation.
 export const CreateJiraTicketsInputSchema = z.object({
   projectId: z.string().describe("The Jira Project ID where tickets will be created."),
-  projectKey: z.string().describe("The Jira Project Key."), // Needed for sub-task creation logic potentially
+  projectKey: z.string().describe("The Jira Project Key."),
   tickets: AnalyzeDocumentOutputSchema,
 });
 export type CreateJiraTicketsInput = z.infer<typeof CreateJiraTicketsInputSchema>;

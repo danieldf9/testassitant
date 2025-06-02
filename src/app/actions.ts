@@ -9,7 +9,8 @@ import {
   GenerateTestCasesOutputSchema,
   type AnalyzeDocumentOutput,
   type CreateJiraTicketsInput,
-  CreateJiraTicketsInputSchema
+  CreateJiraTicketsInputSchema, // Keep this if used, or remove if params are destructured
+  type DraftTicketRecursive
 } from '@/lib/schemas';
 import { z } from 'zod';
 
@@ -42,12 +43,24 @@ const CredentialsSchema = z.object({
   apiToken: z.string(),
 });
 
-const ACCEPTANCE_CRITERIA_CUSTOM_FIELD_ID = 'customfield_10009';
+const ACCEPTANCE_CRITERIA_CUSTOM_FIELD_ID = 'customfield_10009'; // Example custom field ID
 
+// Helper to convert plain text to Atlassian Document Format (ADF) for description
+function textToAdf(text: string): any {
+  if (!text) return null;
+  return {
+    type: "doc",
+    version: 1,
+    content: text.split('\n').map(paragraph => ({
+      type: "paragraph",
+      content: [{ type: "text", text: paragraph }]
+    }))
+  };
+}
 
 function extractTextFromADF(adf: any): string {
   if (!adf) return '';
-  if (typeof adf === 'string') return adf;
+  if (typeof adf === 'string') return adf; // Should not happen with modern Jira
   if (typeof adf !== 'object' || !adf.content || !Array.isArray(adf.content)) {
     return '';
   }
@@ -61,6 +74,7 @@ function extractTextFromADF(adf: any): string {
         traverseNodes(node.content);
       }
       if (node.type === 'paragraph' && textContent.length > 0 && !textContent.endsWith('\n\n')) {
+         // Add a newline after paragraphs, but not if it's already double-spaced or empty.
          if (textContent.trim().length > 0 && !textContent.endsWith('\n')) {
            textContent += '\n';
          }
@@ -68,6 +82,7 @@ function extractTextFromADF(adf: any): string {
     }
   }
   traverseNodes(adf.content);
+  // Normalize multiple newlines to single, and remove trailing/leading newlines from the whole block
   return textContent.trim().replace(/\s+\n/g, '\n');
 }
 
@@ -141,6 +156,7 @@ export async function fetchIssuesAction(
     const startAt = (page - 1) * pageSize;
     
     const jql = `project = ${projectId} ORDER BY created DESC`;
+    // Requesting 'description' and a common custom field for acceptance criteria
     const fields = `summary,issuetype,status,description,${ACCEPTANCE_CRITERIA_CUSTOM_FIELD_ID},project`; 
     
     const apiUrl = `${jiraUrl}/rest/api/3/search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${pageSize}&fields=${fields}`;
@@ -169,7 +185,7 @@ export async function fetchIssuesAction(
       status: issue.fields.status?.name || 'Unknown',
       description: issue.fields.description ? extractTextFromADF(issue.fields.description) : undefined,
       acceptanceCriteria: issue.fields[ACCEPTANCE_CRITERIA_CUSTOM_FIELD_ID] ? extractTextFromADF(issue.fields[ACCEPTANCE_CRITERIA_CUSTOM_FIELD_ID]) : undefined,
-      project: {
+      project: { // Ensure project details are mapped
         id: issue.fields.project.id,
         key: issue.fields.project.key,
         name: issue.fields.project.name,
@@ -201,15 +217,21 @@ export async function generateTestCasesAction(input: GenerateTestCasesInput): Pr
   try {
     console.log('Generating test cases for:', input.description?.substring(0, 50) + "...");
     const result = await generateTestCases(input);
+     // Add a check to ensure AI doesn't return empty results for valid inputs unnecessarily
      if (result.length === 0) {
+        // If both description and AC are truly empty, an empty array is fine.
+        // Otherwise, it might indicate an AI processing issue if inputs were provided.
         if (!input.description && !input.acceptanceCriteria) {
-             return [];
+             return []; // Expected empty if inputs are empty
         }
+        // Potentially log or handle cases where inputs were provided but AI returned nothing
     }
     return result;
   } catch (error) {
     console.error("Error in generateTestCasesAction:", error);
+    // Provide a more user-friendly error message for AI related issues
     if (error instanceof Error) {
+        // Check for specific AI related error messages if possible, or generalize
         throw new Error(`Failed to generate test cases: ${error.message}`);
     }
     throw new Error("Failed to generate test cases due to an AI processing error.");
@@ -218,20 +240,22 @@ export async function generateTestCasesAction(input: GenerateTestCasesInput): Pr
 
 const AttachTestCasesParamsSchema = z.object({
   issueKey: z.string(),
-  testCases: GenerateTestCasesOutputSchema,
+  testCases: GenerateTestCasesOutputSchema, // Expecting the full test case data
   attachmentType: z.enum(['csv', 'subtask']),
-  projectId: z.string(),
+  projectId: z.string(), // Add projectId
 });
 
+// Helper to convert test cases to CSV
 function convertTestCasesToCsv(testCases: GenerateTestCasesOutput): string {
   if (!testCases || testCases.length === 0) return '';
 
   const escapeCsvField = (field: string | undefined): string => {
     if (field === undefined || field === null) return '';
     let strField = String(field);
+    // Escape quotes by doubling them, and wrap in quotes if field contains comma, newline, or quote
     if (strField.includes(',') || strField.includes('\n') || strField.includes('"')) {
-      strField = strField.replace(/"/g, '""');
-      return `"${strField}"`;
+      strField = strField.replace(/"/g, '""'); // Escape existing quotes
+      return `"${strField}"`; // Wrap in quotes
     }
     return strField;
   };
@@ -243,7 +267,7 @@ function convertTestCasesToCsv(testCases: GenerateTestCasesOutput): string {
     escapeCsvField(tc.description),
     escapeCsvField(tc.precondition),
     escapeCsvField(tc.testData),
-    escapeCsvField(tc.testSteps.join('\n')),
+    escapeCsvField(tc.testSteps.join('\n')), // Join steps with newline for CSV readability
     escapeCsvField(tc.expectedResult),
   ]);
 
@@ -270,7 +294,7 @@ export async function attachTestCasesToJiraAction(
 
       const formData = new FormData();
       const csvBlob = new Blob([csvContent], { type: 'text/csv' });
-      const fileName = `${issueKey}-test-cases.csv`;
+      const fileName = `${issueKey}-test-cases-${new Date().toISOString().split('T')[0]}.csv`;
       formData.append('file', csvBlob, fileName);
 
       const attachResponse = await fetch(`${jiraUrl}/rest/api/3/issue/${issueKey}/attachments`, {
@@ -278,7 +302,7 @@ export async function attachTestCasesToJiraAction(
         headers: {
           'Authorization': authHeader,
           'Accept': 'application/json',
-          'X-Atlassian-Token': 'no-check',
+          'X-Atlassian-Token': 'no-check', // Required for multipart/form-data
         },
         body: formData,
       });
@@ -296,6 +320,7 @@ export async function attachTestCasesToJiraAction(
       const errorMessages: string[] = [];
 
       for (const tc of testCases) {
+        // Construct detailed description for the sub-task using ADF
         const subtaskDescriptionADF = {
           type: "doc",
           version: 1,
@@ -313,11 +338,11 @@ export async function attachTestCasesToJiraAction(
         
         const subtaskPayload = {
           fields: {
-            project: { id: projectId },
+            project: { id: projectId }, // Use the passed projectId
             parent: { key: issueKey },
-            summary: tc.testCaseName,
+            summary: tc.testCaseName, // Use test case name as summary
             description: subtaskDescriptionADF, 
-            issuetype: { name: 'Sub-task' },
+            issuetype: { name: 'Sub-task' }, // This might need to be configurable or use ID
           },
         };
 
@@ -343,7 +368,8 @@ export async function attachTestCasesToJiraAction(
       if (successCount === testCases.length) {
         return { success: true, message: `Successfully created ${successCount} sub-task(s) for ${issueKey}.` };
       } else if (successCount > 0) {
-        return { success: true, message: `Created ${successCount} sub-task(s) for ${issueKey}. Some failed: ${errorMessages.join('; ')}` };
+        // Partial success message
+        return { success: true, message: `Created ${successCount} of ${testCases.length} sub-task(s) for ${issueKey}. Some failed: ${errorMessages.join('; ')}` };
       } else {
         throw new Error(`Failed to create any sub-tasks for ${issueKey}. Errors: ${errorMessages.join('; ')}`);
       }
@@ -382,48 +408,43 @@ export async function analyzeDocumentAction(input: AnalyzeDocumentInput): Promis
 export async function createJiraTicketsAction(
   credentials: JiraCredentials,
   params: CreateJiraTicketsInput
-): Promise<{ success: boolean; message: string; createdTickets: any[] }> {
+): Promise<{ success: boolean; message: string; createdTickets: { key: string; summary: string; type: string }[] }> {
   const validatedCredentials = CredentialsSchema.parse(credentials);
-  // const validatedParams = CreateJiraTicketsInputSchema.parse(params); // We'll parse params inside if needed, or assume valid for now
+  // Validate params using the Zod schema to ensure structure
+  const validatedParams = CreateJiraTicketsInputSchema.safeParse(params);
+  if (!validatedParams.success) {
+    console.error("Invalid params for createJiraTicketsAction:", validatedParams.error.flatten());
+    throw new Error(`Invalid input parameters for creating Jira tickets: ${validatedParams.error.flatten().formErrors.join(', ')}`);
+  }
+  
   const { jiraUrl, email, apiToken } = validatedCredentials;
-  const { projectId, projectKey, tickets } = params; // Assuming params is already validated or structured correctly
+  const { projectId, projectKey, tickets } = validatedParams.data;
 
   const authHeader = `Basic ${Buffer.from(`${email}:${apiToken}`).toString('base64')}`;
-  const createdTickets: any[] = [];
-  let overallSuccess = true;
+  const createdTicketsResult: { key: string; summary: string; type: string }[] = [];
   const errorMessages: string[] = [];
 
   // Helper function to create a single ticket.
-  // This will need to be more sophisticated to handle parent-child linking.
-  const createSingleTicket = async (ticketData: any, parentKey?: string) => {
-    const descriptionADF = {
-      type: "doc",
-      version: 1,
-      content: ticketData.description.split('\n').map((pText: string) => ({
-        type: "paragraph",
-        content: [{ type: "text", text: pText }]
-      }))
-    };
+  const createSingleTicket = async (ticketData: DraftTicketRecursive, parentJiraKey?: string) => {
+    const descriptionADF = textToAdf(ticketData.description);
 
     const payload: any = {
       fields: {
-        project: { id: projectId },
+        project: { id: projectId }, // project ID
         summary: ticketData.summary,
         description: descriptionADF,
         issuetype: { name: ticketData.type }, // Assumes 'type' is a valid Jira issue type name
       },
     };
 
-    if (parentKey && ticketData.type === 'Sub-task') {
-      payload.fields.parent = { key: parentKey };
-    } else if (parentKey && ticketData.type !== 'Epic' && ticketData.type !== 'Sub-task') {
-      // For linking Stories/Tasks to Epics, Jira uses a custom field, typically 'epicLinkFieldId'
-      // This needs to be discovered or configured for the specific Jira instance.
-      // Example: payload.fields['customfield_XXXXX'] = parentKey; (where XXXXX is Epic Link field ID)
-      // For simplicity, direct parent linking for non-subtasks is omitted here but is crucial for epics.
-      // For now, we'll assume top-level creation for items that are not sub-tasks.
-    }
-
+    // Handle parent linking for sub-tasks
+    if (parentJiraKey && ticketData.type === 'Sub-task') {
+      payload.fields.parent = { key: parentJiraKey };
+    } 
+    // Note: Linking Stories/Tasks to Epics often requires a custom field (e.g., 'Epic Link').
+    // This ID varies by Jira instance. For simplicity, this initial version doesn't implement
+    // direct epic linking for children of epics unless they are sub-tasks. They'll be top-level.
+    // Future enhancement: Make Epic Link field ID configurable.
 
     const response = await fetch(`${jiraUrl}/rest/api/3/issue`, {
       method: 'POST',
@@ -440,9 +461,10 @@ export async function createJiraTicketsAction(
       return { success: true, data: created };
     } else {
       const errorText = await response.text();
-      console.error(`Jira API Error (create ${ticketData.type} "${ticketData.summary}"):`, response.status, errorText);
-      errorMessages.push(`Failed to create ${ticketData.type} "${ticketData.summary.substring(0,30)}...": ${response.status}`);
-      return { success: false, error: errorText };
+      const shortError = errorText.length > 200 ? errorText.substring(0, 200) + "..." : errorText;
+      console.error(`Jira API Error (create ${ticketData.type} "${ticketData.summary}"):`, response.status, shortError);
+      errorMessages.push(`Failed to create ${ticketData.type} "${ticketData.summary.substring(0,30)}...": ${response.status} - ${shortError}`);
+      return { success: false, error: shortError };
     }
   };
 
@@ -451,26 +473,48 @@ export async function createJiraTicketsAction(
     for (const ticket of ticketList) {
       const result = await createSingleTicket(ticket, parentJiraKey);
       if (result.success && result.data) {
-        createdTickets.push(result.data);
+        createdTicketsResult.push({ key: result.data.key, summary: ticket.summary, type: ticket.type });
         if (ticket.children && ticket.children.length > 0) {
-          // If the created ticket was an Epic, its key is used for Epic Link field.
-          // If it was a Story/Task, its key is used for sub-tasks.
+          // If the created ticket can be a parent (Epic, Story, Task, Bug), its key is used for sub-tasks.
           const newParentKey = result.data.key;
           await createTicketsRecursively(ticket.children, newParentKey);
         }
-      } else {
-        overallSuccess = false;
       }
+      // Errors are collected in errorMessages by createSingleTicket
     }
   }
 
   await createTicketsRecursively(tickets);
 
-  if (overallSuccess && errorMessages.length === 0) {
-    return { success: true, message: `Successfully created ${createdTickets.length} tickets and their children in Jira.`, createdTickets };
-  } else if (createdTickets.length > 0) {
-     return { success: false, message: `Partially created ${createdTickets.length} tickets. Some failures occurred: ${errorMessages.join('; ')}`, createdTickets };
-  } else {
-    throw new Error(`Failed to create any tickets in Jira. Errors: ${errorMessages.join('; ')}`);
+  let overallSuccess = errorMessages.length === 0;
+  let message = "";
+
+  if (createdTicketsResult.length > 0 && overallSuccess) {
+    message = `Successfully created ${createdTicketsResult.length} ticket(s) in Jira.`;
+  } else if (createdTicketsResult.length > 0 && !overallSuccess) {
+    message = `Partially created ${createdTicketsResult.length} ticket(s). Some failures occurred: ${errorMessages.join('; ')}`;
+  } else if (createdTicketsResult.length === 0 && !overallSuccess) {
+     overallSuccess = false; // Ensure success is false if nothing was created and errors occurred
+    message = `Failed to create any tickets in Jira. Errors: ${errorMessages.join('; ')}`;
+  } else if (createdTicketsResult.length === 0 && overallSuccess && tickets.length > 0) {
+    // This case should ideally not happen if tickets were provided but none created and no errors.
+    // It might mean the input 'tickets' array was processed but all creations failed silently (which createSingleTicket should prevent).
+    message = `No tickets were created, though no explicit errors were reported. Please check the input or Jira configuration.`;
+    overallSuccess = false;
+  } else if (tickets.length === 0) {
+    message = "No tickets were provided to create.";
+    overallSuccess = true; // No operation to fail
   }
+
+
+  if (!overallSuccess && createdTicketsResult.length === 0) {
+     // If truly nothing was created and there were errors, throw to indicate a larger failure.
+     // Otherwise, partial success will be handled by the return object.
+     // This helps the client side distinguish between total failure and partial success.
+     if (tickets.length > 0) { // Only throw if there was an attempt to create something
+        // throw new Error(message); // Decided to return message instead of throwing for UI handling
+     }
+  }
+
+  return { success: overallSuccess, message, createdTickets: createdTicketsResult };
 }
