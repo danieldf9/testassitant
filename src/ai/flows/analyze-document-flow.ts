@@ -42,10 +42,10 @@ Instructions:
 3.  **Decompose Stories/Tasks into Sub-tasks:** These are smaller, actionable steps required to complete a story or task.
 4.  **Structure:** Provide the output as a JSON array. Each element can be an epic. Epics can have a 'children' array containing stories or tasks. Stories/tasks can also have a 'children' array for their sub-tasks.
 5.  **Ticket Details:**
-    *   `type`: Must be one of "Epic", "Story", "Task", "Sub-task".
-    *   `summary`: A concise and descriptive summary. For epics and top-level stories/tasks, try to make them unique.
-    *   `description`: A detailed description derived from the document. For stories, if possible, include acceptance criteria within the description or as a separate list if the schema allows.
-    *   `suggestedId`: (Optional) For Epics and top-level Stories/Tasks, you can suggest a Jira-like ID using the project key (e.g., "{{projectKey}}-1", "{{projectKey}}-2"). Do not add this for sub-tasks. Ensure these are for reference and the actual ID will be assigned by Jira.
+    *   \\\`type\\\`: Must be one of "Epic", "Story", "Task", "Sub-task".
+    *   \\\`summary\\\`: A concise and descriptive summary. For epics and top-level stories/tasks, try to make them unique.
+    *   \\\`description\\\`: A detailed description derived from the document. For stories, if possible, include acceptance criteria within the description or as a separate list if the schema allows.
+    *   \\\`suggestedId\\\`: (Optional) For Epics and top-level Stories/Tasks, you can suggest a Jira-like ID using the project key (e.g., "{{projectKey}}-1", "{{projectKey}}-2"). Do not add this for sub-tasks. Ensure these are for reference and the actual ID will be assigned by Jira.
 6.  **Completeness:** Be thorough. Try to capture all distinct pieces of work mentioned or implied in the document. If the document is vague, make reasonable assumptions but clearly state them in the descriptions if necessary.
 7.  **Clarity:** Ensure summaries and descriptions are clear, actionable, and reflect the content of the document.
 8.  **Format:** Ensure the output strictly adheres to the JSON schema provided for 'AnalyzeDocumentOutputSchema'. The root should be an array of tickets.
