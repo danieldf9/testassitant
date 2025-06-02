@@ -21,7 +21,7 @@ import { Eye, EyeOff, KeyRound, AtSign, LinkIcon } from 'lucide-react';
 import { useState } from 'react';
 
 const authSchema = z.object({
-  jiraUrl: z.string().url({ message: 'Please enter a valid Jira URL (e.g., https://your-domain.atlassian.net).' }),
+  jiraUrl: z.string().url({ message: 'Enter your full Jira instance URL (e.g., https://your-org.atlassian.net or https://jira.yourcompany.com).' }),
   email: z.string().email({ message: 'Please enter a valid email address.' }),
   apiToken: z.string().min(1, { message: 'API Token cannot be empty.' }),
 });
@@ -64,7 +64,7 @@ export function AuthForm() {
                     <div className="relative">
                       <LinkIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <FormControl>
-                        <Input placeholder="https://your-company.atlassian.net" {...field} className="pl-10" />
+                        <Input placeholder="e.g., https://your-org.atlassian.net" {...field} className="pl-10" />
                       </FormControl>
                     </div>
                     <FormMessage />

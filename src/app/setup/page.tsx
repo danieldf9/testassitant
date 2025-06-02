@@ -49,7 +49,7 @@ export default function SetupPage() {
             <p className="mb-2 text-foreground/90">You&apos;ll need two more pieces of information:</p>
             <ul className="list-disc list-inside space-y-1 pl-4 text-foreground/80">
               <li>
-                <span className="font-semibold">Jira URL:</span> This is the web address of your Jira instance (e.g., <code className="bg-muted px-1 py-0.5 rounded text-sm">https://your-company.atlassian.net</code>).
+                <span className="font-semibold">Jira URL:</span> This is the web address of your Jira instance (e.g., <code className="bg-muted px-1 py-0.5 rounded text-sm">https://your-org.atlassian.net</code> or <code className="bg-muted px-1 py-0.5 rounded text-sm">https://jira.yourcompany.com</code>).
               </li>
               <li>
                 <span className="font-semibold">Jira Email Address:</span> The email address you use to log in to Jira.
@@ -86,7 +86,7 @@ export default function SetupPage() {
               After successful connection, you can select a project, view its issues, and start generating test cases with the power of AI.
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
-              <strong>Important:</strong> Ensure the account associated with the API token has the necessary permissions in Jira to read project details and issues, and (if you plan to use the "Attach to Jira" feature fully) to create attachments or sub-tasks.
+              <strong>Important:</strong> Ensure the account associated with the API token has the necessary permissions in Jira to read project details and issues, and (if you plan to use the "Attach to Jira" feature fully) to create attachments or sub-tasks. Your Jira instance at <code className="bg-muted px-1 py-0.5 rounded text-sm">{`https://asudev.jira.com/`}</code> must be accessible from the environment where this application is hosted.
             </p>
           </section>
         </CardContent>
