@@ -232,9 +232,11 @@ export async function generateTestCasesAction(input: GenerateTestCasesInput): Pr
   } catch (error) {
     console.error("Error in generateTestCasesAction:", error);
     let friendlyMessage = "Failed to generate test cases due to an AI processing error.";
-    if (error instanceof Error) {
-        if (error.message && (error.message.includes("503 Service Unavailable") || error.message.includes("model is overloaded"))) {
-            friendlyMessage = "The AI model is currently overloaded and cannot generate test cases at this moment. Please try again in a few moments.";
+    if (error instanceof Error && error.message) {
+        if (error.message.includes("503 Service Unavailable") || error.message.includes("model is overloaded")) {
+            friendlyMessage = "The AI model is currently overloaded. Please try again in a few moments.";
+        } else if (error.message.includes("429 Too Many Requests") || error.message.includes("quota exceeded")) {
+            friendlyMessage = "AI model quota exceeded. Please check your Google AI plan and billing details, then try again.";
         } else {
             friendlyMessage = `Failed to generate test cases: ${error.message}`;
         }
@@ -404,9 +406,11 @@ export async function analyzeDocumentAction(input: AnalyzeDocumentInput): Promis
   } catch (error) {
     console.error("Error in analyzeDocumentAction:", error);
     let friendlyMessage = "Failed to analyze document due to an AI processing error.";
-    if (error instanceof Error) {
-        if (error.message && (error.message.includes("503 Service Unavailable") || error.message.includes("model is overloaded"))) {
-            friendlyMessage = "The AI model is currently overloaded and cannot analyze the document at this moment. Please try again in a few moments.";
+    if (error instanceof Error && error.message) {
+        if (error.message.includes("503 Service Unavailable") || error.message.includes("model is overloaded")) {
+            friendlyMessage = "The AI model is currently overloaded. Please try again in a few moments.";
+        } else if (error.message.includes("429 Too Many Requests") || error.message.includes("quota exceeded")) {
+            friendlyMessage = "AI model quota exceeded. Please check your Google AI plan and billing details, then try again.";
         } else {
             friendlyMessage = `Failed to analyze document: ${error.message}`;
         }
@@ -533,3 +537,4 @@ export async function createJiraTicketsAction(
 
   return { success: overallSuccess, message, createdTickets: createdTicketsResult };
 }
+
