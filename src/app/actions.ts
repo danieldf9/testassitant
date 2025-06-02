@@ -47,16 +47,25 @@ const ACCEPTANCE_CRITERIA_CUSTOM_FIELD_ID = 'customfield_10009'; // Example cust
 
 // Helper to convert plain text to Atlassian Document Format (ADF) for description
 function textToAdf(text: string | undefined): any {
-  if (!text) return null;
+  if (!text || text.trim() === "") return null;
   return {
     type: "doc",
     version: 1,
-    content: text.split('\n').map(paragraph => ({
-      type: "paragraph",
-      content: [{ type: "text", text: paragraph }]
-    }))
+    content: text.split('\n').map(paragraphText => {
+      if (paragraphText.trim() === "") {
+        // Represent empty lines as paragraphs with an empty text node if needed,
+        // or filter them out if Jira handles consecutive newlines well.
+        // For now, let's create paragraphs for non-empty lines.
+        return null; 
+      }
+      return {
+        type: "paragraph",
+        content: [{ type: "text", text: paragraphText.trim() }]
+      };
+    }).filter(p => p !== null) // Filter out nulls from empty lines
   };
 }
+
 
 function extractTextFromADF(adf: any): string {
   if (!adf) return '';
@@ -224,7 +233,7 @@ export async function generateTestCasesAction(input: GenerateTestCasesInput): Pr
     console.error("Error in generateTestCasesAction:", error);
     let friendlyMessage = "Failed to generate test cases due to an AI processing error.";
     if (error instanceof Error) {
-        if (error.message && error.message.includes("503 Service Unavailable")) {
+        if (error.message && (error.message.includes("503 Service Unavailable") || error.message.includes("model is overloaded"))) {
             friendlyMessage = "The AI model is currently overloaded and cannot generate test cases at this moment. Please try again in a few moments.";
         } else {
             friendlyMessage = `Failed to generate test cases: ${error.message}`;
@@ -389,14 +398,14 @@ export async function attachTestCasesToJiraAction(
 
 export async function analyzeDocumentAction(input: AnalyzeDocumentInput): Promise<AnalyzeDocumentOutput> {
   try {
-    console.log('Analyzing document for project:', input.projectKey);
+    console.log('Analyzing document for project:', input.projectKey, 'Persona:', input.userPersona, 'Preference:', input.outputFormatPreference);
     const result = await analyzeDocumentFlow(input);
     return result;
   } catch (error) {
     console.error("Error in analyzeDocumentAction:", error);
     let friendlyMessage = "Failed to analyze document due to an AI processing error.";
     if (error instanceof Error) {
-        if (error.message && error.message.includes("503 Service Unavailable")) {
+        if (error.message && (error.message.includes("503 Service Unavailable") || error.message.includes("model is overloaded"))) {
             friendlyMessage = "The AI model is currently overloaded and cannot analyze the document at this moment. Please try again in a few moments.";
         } else {
             friendlyMessage = `Failed to analyze document: ${error.message}`;
@@ -418,7 +427,7 @@ export async function createJiraTicketsAction(
   }
   
   const { jiraUrl, email, apiToken } = validatedCredentials;
-  const { projectId, tickets } = validatedParams.data; // projectKey is not directly used here but available if needed
+  const { projectId, tickets } = validatedParams.data; 
 
   const authHeader = `Basic ${Buffer.from(`${email}:${apiToken}`).toString('base64')}`;
   const createdTicketsResult: { key: string; summary: string; type: string }[] = [];
@@ -431,15 +440,24 @@ export async function createJiraTicketsAction(
       fields: {
         project: { id: projectId }, 
         summary: ticketData.summary,
-        description: descriptionADF,
-        issuetype: { name: ticketData.type }, 
+        issuetype: { name: ticketData.type },
       },
     };
+    // Only add description if it's not null (empty descriptions are allowed by Jira if the field is not required)
+    if (descriptionADF && descriptionADF.content && descriptionADF.content.length > 0) {
+        payload.fields.description = descriptionADF;
+    }
+
 
     if (parentJiraKey && ticketData.type === 'Sub-task') {
       payload.fields.parent = { key: parentJiraKey };
     } 
     
+    // Epic Link: This is a common custom field for linking issues to Epics.
+    // The field ID (e.g., 'customfield_10000') varies between Jira instances.
+    // For now, if an Epic is a parent, we're not linking children to it via this field.
+    // This could be an enhancement if the field ID is known/configurable.
+
     const response = await fetch(`${jiraUrl}/rest/api/3/issue`, {
       method: 'POST',
       headers: {
@@ -454,11 +472,23 @@ export async function createJiraTicketsAction(
       const created = await response.json();
       return { success: true, data: created };
     } else {
-      const errorText = await response.text();
-      const shortError = errorText.length > 200 ? errorText.substring(0, 200) + "..." : errorText;
-      console.error(`Jira API Error (create ${ticketData.type} "${ticketData.summary.substring(0,50)}...") Status ${response.status}:`, shortError);
-      errorMessages.push(`Failed to create ${ticketData.type} "${ticketData.summary.substring(0,30)}...": ${response.status} - ${shortError}`);
-      return { success: false, error: shortError };
+      const errorText = await response.text(); // Get full error text
+      // Log the full error for server-side debugging
+      console.error(`Jira API Error (create ${ticketData.type} "${ticketData.summary.substring(0,50)}...") Status ${response.status}: Full Response: ${errorText}`);
+      // Provide a potentially shortened or parsed error for the user message
+      let userFriendlyError = `Status ${response.status}`;
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.errorMessages && errorJson.errorMessages.length > 0) {
+          userFriendlyError += ` - ${errorJson.errorMessages.join('. ')}`;
+        } else if (errorJson.errors) {
+           userFriendlyError += ` - ${Object.entries(errorJson.errors).map(([k,v]) => `${k}: ${v}`).join('. ')}`;
+        }
+      } catch (e) {
+        userFriendlyError += ` - ${errorText.substring(0,100)}${errorText.length > 100 ? '...' : ''}`;
+      }
+      errorMessages.push(`Failed to create ${ticketData.type} "${ticketData.summary.substring(0,30)}...": ${userFriendlyError}`);
+      return { success: false, error: userFriendlyError };
     }
   };
 
@@ -468,8 +498,11 @@ export async function createJiraTicketsAction(
       if (result.success && result.data) {
         createdTicketsResult.push({ key: result.data.key, summary: ticket.summary, type: ticket.type });
         if (ticket.children && ticket.children.length > 0) {
-          const newParentKey = result.data.key;
-          await createTicketsRecursively(ticket.children, newParentKey);
+          // If the current ticket is an Epic, its children (Stories/Tasks) are created as top-level issues
+          // and are NOT automatically linked to the Epic via 'Epic Link' custom field in this version.
+          // Sub-tasks, however, are correctly parented to their Story/Task.
+          const newParentKeyForSubtasks = (ticket.type !== 'Epic') ? result.data.key : undefined;
+          await createTicketsRecursively(ticket.children, newParentKeyForSubtasks);
         }
       }
     }
@@ -481,23 +514,22 @@ export async function createJiraTicketsAction(
   let message = "";
 
   if (createdTicketsResult.length > 0 && overallSuccess) {
-    message = `Successfully created ${createdTicketsResult.length} ticket(s) in Jira.`;
+    message = `Successfully created ${createdTicketsResult.length} ticket(s)/sub-task(s) in Jira.`;
   } else if (createdTicketsResult.length > 0 && !overallSuccess) {
-    message = `Partially created ${createdTicketsResult.length} ticket(s). Some failures occurred: ${errorMessages.join('; ')}`;
+    message = `Partially created ${createdTicketsResult.length} ticket(s)/sub-task(s). Some failures occurred: ${errorMessages.join('; ')}`;
+     overallSuccess = false; // Ensure overallSuccess is false if there are errors
   } else if (createdTicketsResult.length === 0 && !overallSuccess && tickets.length > 0) {
-     overallSuccess = false; 
+    overallSuccess = false; 
     message = `Failed to create any tickets in Jira. Errors: ${errorMessages.join('; ')}`;
   } else if (createdTicketsResult.length === 0 && overallSuccess && tickets.length === 0) {
     message = "No tickets were provided to create.";
     overallSuccess = true; 
   } else if (createdTicketsResult.length === 0 && overallSuccess && tickets.length > 0){
-    message = `No tickets were created, though no explicit errors were reported. Please check the input or Jira configuration.`;
+    // This case means no tickets were created, but no errors were explicitly reported by createSingleTicket.
+    // This could happen if createSingleTicket logic had an issue before the fetch, or if tickets array was somehow filtered to empty.
+    message = `No tickets were created, though no explicit errors were reported from Jira. Please check the input or Jira project configuration (e.g., required fields).`;
     overallSuccess = false;
   }
 
-
   return { success: overallSuccess, message, createdTickets: createdTicketsResult };
 }
-
-
-    
