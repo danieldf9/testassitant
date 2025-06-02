@@ -1,7 +1,8 @@
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, Settings, HelpCircle } from 'lucide-react';
+import { Menu, Settings, HelpCircle } from 'lucide-react'; // Added HelpCircle
 import { JiraLogo } from '@/components/icons/JiraLogo';
 
 export function AppHeader() {
@@ -22,7 +23,11 @@ export function AppHeader() {
               Setup
             </Link>
           </Button>
-          {/* Add more navigation items here if needed */}
+          <Button variant="ghost" size="icon" asChild  className="text-muted-foreground hover:text-foreground">
+             <Link href="/setup" aria-label="Help and Setup">
+                <HelpCircle className="h-5 w-5" />
+             </Link>
+          </Button>
         </div>
 
         <div className="md:hidden">
@@ -46,7 +51,13 @@ export function AppHeader() {
                   <Settings className="h-5 w-5" />
                   Setup
                 </Link>
-                {/* Add more mobile navigation items here if needed */}
+                 <Link
+                  href="/setup" // Or a dedicated help page later
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground hover:text-foreground"
+                >
+                  <HelpCircle className="h-5 w-5" />
+                  Help
+                </Link>
               </nav>
             </SheetContent>
           </Sheet>

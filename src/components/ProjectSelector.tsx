@@ -26,17 +26,17 @@ import { cn } from '@/lib/utils';
 
 interface ProjectSelectorProps {
   selectedProjectId: string | undefined;
-  onProjectSelect: (projectId: string) => void;
+  onProjectSelect: (projectId: string, projectKey?: string, projectName?: string) => void;
   disabled?: boolean;
 }
 
 export function ProjectSelector({ selectedProjectId, onProjectSelect, disabled }: ProjectSelectorProps) {
   const { credentials } = useAuth();
   const [open, setOpen] = useState(false);
-  const [currentValue, setCurrentValue] = useState(selectedProjectId); // Internal state for combobox value
+  const [currentValue, setCurrentValue] = useState(selectedProjectId); 
 
   useEffect(() => {
-    setCurrentValue(selectedProjectId); // Sync with prop
+    setCurrentValue(selectedProjectId); 
   }, [selectedProjectId]);
 
   const { data: projects, isLoading, error } = useQuery<JiraProject[], Error>({
@@ -104,11 +104,11 @@ export function ProjectSelector({ selectedProjectId, onProjectSelect, disabled }
                 {projects.map((project) => (
                   <CommandItem
                     key={project.id}
-                    value={`${project.name} ${project.key} ${project.id}`} // Value used for searching
+                    value={`${project.name} ${project.key} ${project.id}`} 
                     onSelect={() => {
                       const newValue = project.id === currentValue ? "" : project.id;
                       setCurrentValue(newValue);
-                      onProjectSelect(newValue);
+                      onProjectSelect(newValue, project.key, project.name); // Pass key and name
                       setOpen(false);
                     }}
                   >

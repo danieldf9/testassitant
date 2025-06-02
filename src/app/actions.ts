@@ -3,17 +3,24 @@
 
 import type { JiraCredentials } from '@/contexts/AuthContext';
 import { generateTestCases, type GenerateTestCasesInput } from '@/ai/flows/generate-test-cases';
-import { type GenerateTestCasesOutput, GenerateTestCasesOutputSchema } from '@/lib/schemas';
+import { analyzeDocument as analyzeDocumentFlow, type AnalyzeDocumentInput } from '@/ai/flows/analyze-document-flow';
+import {
+  type GenerateTestCasesOutput,
+  GenerateTestCasesOutputSchema,
+  type AnalyzeDocumentOutput,
+  type CreateJiraTicketsInput,
+  CreateJiraTicketsInputSchema
+} from '@/lib/schemas';
 import { z } from 'zod';
 
-// Updated JiraProject data type (if needed elsewhere, though not directly used in these changes)
+// JiraProject data type
 export interface JiraProject {
   id: string;
   key: string;
   name: string;
 }
 
-// Updated JiraIssue data type to include project information
+// JiraIssue data type
 export interface JiraIssue {
   id: string;
   key: string;
@@ -29,7 +36,6 @@ export interface JiraIssue {
   };
 }
 
-// Schema for credentials to ensure they are passed correctly
 const CredentialsSchema = z.object({
   jiraUrl: z.string().url(),
   email: z.string().email(),
@@ -135,7 +141,6 @@ export async function fetchIssuesAction(
     const startAt = (page - 1) * pageSize;
     
     const jql = `project = ${projectId} ORDER BY created DESC`;
-    // Added 'project' to fields
     const fields = `summary,issuetype,status,description,${ACCEPTANCE_CRITERIA_CUSTOM_FIELD_ID},project`; 
     
     const apiUrl = `${jiraUrl}/rest/api/3/search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${pageSize}&fields=${fields}`;
@@ -164,7 +169,7 @@ export async function fetchIssuesAction(
       status: issue.fields.status?.name || 'Unknown',
       description: issue.fields.description ? extractTextFromADF(issue.fields.description) : undefined,
       acceptanceCriteria: issue.fields[ACCEPTANCE_CRITERIA_CUSTOM_FIELD_ID] ? extractTextFromADF(issue.fields[ACCEPTANCE_CRITERIA_CUSTOM_FIELD_ID]) : undefined,
-      project: { // Populate project details
+      project: {
         id: issue.fields.project.id,
         key: issue.fields.project.key,
         name: issue.fields.project.name,
@@ -200,9 +205,6 @@ export async function generateTestCasesAction(input: GenerateTestCasesInput): Pr
         if (!input.description && !input.acceptanceCriteria) {
              return [];
         }
-        // Remove the demo data generation for short descriptions as per original logic.
-        // This was a placeholder and might not be desired with real AI.
-        // If you want to keep some fallback for very short/empty inputs, it can be added here.
     }
     return result;
   } catch (error) {
@@ -214,12 +216,11 @@ export async function generateTestCasesAction(input: GenerateTestCasesInput): Pr
   }
 }
 
-// Updated schema to accept full test case data and project ID
 const AttachTestCasesParamsSchema = z.object({
   issueKey: z.string(),
-  testCases: GenerateTestCasesOutputSchema, // Use the schema for full test case data
+  testCases: GenerateTestCasesOutputSchema,
   attachmentType: z.enum(['csv', 'subtask']),
-  projectId: z.string(), // Project ID of the parent issue, for creating sub-tasks
+  projectId: z.string(),
 });
 
 function convertTestCasesToCsv(testCases: GenerateTestCasesOutput): string {
@@ -228,9 +229,7 @@ function convertTestCasesToCsv(testCases: GenerateTestCasesOutput): string {
   const escapeCsvField = (field: string | undefined): string => {
     if (field === undefined || field === null) return '';
     let strField = String(field);
-    // If field contains comma, newline, or double quote, wrap in double quotes
     if (strField.includes(',') || strField.includes('\n') || strField.includes('"')) {
-      // Escape existing double quotes by doubling them
       strField = strField.replace(/"/g, '""');
       return `"${strField}"`;
     }
@@ -244,7 +243,7 @@ function convertTestCasesToCsv(testCases: GenerateTestCasesOutput): string {
     escapeCsvField(tc.description),
     escapeCsvField(tc.precondition),
     escapeCsvField(tc.testData),
-    escapeCsvField(tc.testSteps.join('\n')), // Join steps with newline
+    escapeCsvField(tc.testSteps.join('\n')),
     escapeCsvField(tc.expectedResult),
   ]);
 
@@ -279,7 +278,7 @@ export async function attachTestCasesToJiraAction(
         headers: {
           'Authorization': authHeader,
           'Accept': 'application/json',
-          'X-Atlassian-Token': 'no-check', // Required for multipart/form-data
+          'X-Atlassian-Token': 'no-check',
         },
         body: formData,
       });
@@ -301,68 +300,24 @@ export async function attachTestCasesToJiraAction(
           type: "doc",
           version: 1,
           content: [
-            {
-              type: "paragraph",
-              content: [
-                { type: "text", text: "Test Case ID: ", marks: [{ type: "strong" }] },
-                { type: "text", text: tc.testCaseId }
-              ]
-            },
-            {
-              type: "paragraph",
-              content: [
-                { type: "text", text: "Description: ", marks: [{ type: "strong" }] },
-                { type: "text", text: tc.description }
-              ]
-            },
-            {
-              type: "paragraph",
-              content: [
-                { type: "text", text: "Precondition: ", marks: [{ type: "strong" }] },
-                { type: "text", text: tc.precondition }
-              ]
-            },
-            {
-              type: "paragraph",
-              content: [
-                { type: "text", text: "Test Data: ", marks: [{ type: "strong" }] },
-                { type: "text", text: tc.testData || 'N/A' }
-              ]
-            },
-            {
-              type: "heading",
-              attrs: { level: 3 },
-              content: [{ type: "text", text: "Test Steps" }]
-            },
-            {
-              type: "orderedList",
-              content: tc.testSteps.map(step => ({
-                type: "listItem",
-                content: [{
-                  type: "paragraph",
-                  content: [{ type: "text", text: step }]
-                }]
-              }))
-            },
-            {
-              type: "heading",
-              attrs: { level: 3 },
-              content: [{ type: "text", text: "Expected Result" }]
-            },
-            {
-              type: "paragraph",
-              content: [{ type: "text", text: tc.expectedResult }]
-            }
+            { type: "paragraph", content: [ { type: "text", text: "Test Case ID: ", marks: [{ type: "strong" }] }, { type: "text", text: tc.testCaseId } ] },
+            { type: "paragraph", content: [ { type: "text", text: "Description: ", marks: [{ type: "strong" }] }, { type: "text", text: tc.description } ] },
+            { type: "paragraph", content: [ { type: "text", text: "Precondition: ", marks: [{ type: "strong" }] }, { type: "text", text: tc.precondition } ] },
+            { type: "paragraph", content: [ { type: "text", text: "Test Data: ", marks: [{ type: "strong" }] }, { type: "text", text: tc.testData || 'N/A' } ] },
+            { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Test Steps" }] },
+            { type: "orderedList", content: tc.testSteps.map(step => ({ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: step }] }] })) },
+            { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Expected Result" }] },
+            { type: "paragraph", content: [{ type: "text", text: tc.expectedResult }] }
           ]
         };
         
         const subtaskPayload = {
           fields: {
-            project: { id: projectId }, // Use Project ID
+            project: { id: projectId },
             parent: { key: issueKey },
             summary: tc.testCaseName,
             description: subtaskDescriptionADF, 
-            issuetype: { name: 'Sub-task' }, // This name might need to be configured if your Jira instance uses a different name or requires an ID.
+            issuetype: { name: 'Sub-task' },
           },
         };
 
@@ -405,5 +360,117 @@ export async function attachTestCasesToJiraAction(
         throw new Error(`Failed to attach test cases to Jira: ${error.message}`);
     }
     throw new Error('An unexpected error occurred while attaching test cases to Jira.');
+  }
+}
+
+// Action to analyze document and draft tickets
+export async function analyzeDocumentAction(input: AnalyzeDocumentInput): Promise<AnalyzeDocumentOutput> {
+  try {
+    console.log('Analyzing document for project:', input.projectKey);
+    const result = await analyzeDocumentFlow(input);
+    return result;
+  } catch (error) {
+    console.error("Error in analyzeDocumentAction:", error);
+    if (error instanceof Error) {
+      throw new Error(`Failed to analyze document: ${error.message}`);
+    }
+    throw new Error("Failed to analyze document due to an AI processing error.");
+  }
+}
+
+// Action to create drafted tickets in Jira
+export async function createJiraTicketsAction(
+  credentials: JiraCredentials,
+  params: CreateJiraTicketsInput
+): Promise<{ success: boolean; message: string; createdTickets: any[] }> {
+  const validatedCredentials = CredentialsSchema.parse(credentials);
+  // const validatedParams = CreateJiraTicketsInputSchema.parse(params); // We'll parse params inside if needed, or assume valid for now
+  const { jiraUrl, email, apiToken } = validatedCredentials;
+  const { projectId, projectKey, tickets } = params; // Assuming params is already validated or structured correctly
+
+  const authHeader = `Basic ${Buffer.from(`${email}:${apiToken}`).toString('base64')}`;
+  const createdTickets: any[] = [];
+  let overallSuccess = true;
+  const errorMessages: string[] = [];
+
+  // Helper function to create a single ticket.
+  // This will need to be more sophisticated to handle parent-child linking.
+  const createSingleTicket = async (ticketData: any, parentKey?: string) => {
+    const descriptionADF = {
+      type: "doc",
+      version: 1,
+      content: ticketData.description.split('\n').map((pText: string) => ({
+        type: "paragraph",
+        content: [{ type: "text", text: pText }]
+      }))
+    };
+
+    const payload: any = {
+      fields: {
+        project: { id: projectId },
+        summary: ticketData.summary,
+        description: descriptionADF,
+        issuetype: { name: ticketData.type }, // Assumes 'type' is a valid Jira issue type name
+      },
+    };
+
+    if (parentKey && ticketData.type === 'Sub-task') {
+      payload.fields.parent = { key: parentKey };
+    } else if (parentKey && ticketData.type !== 'Epic' && ticketData.type !== 'Sub-task') {
+      // For linking Stories/Tasks to Epics, Jira uses a custom field, typically 'epicLinkFieldId'
+      // This needs to be discovered or configured for the specific Jira instance.
+      // Example: payload.fields['customfield_XXXXX'] = parentKey; (where XXXXX is Epic Link field ID)
+      // For simplicity, direct parent linking for non-subtasks is omitted here but is crucial for epics.
+      // For now, we'll assume top-level creation for items that are not sub-tasks.
+    }
+
+
+    const response = await fetch(`${jiraUrl}/rest/api/3/issue`, {
+      method: 'POST',
+      headers: {
+        'Authorization': authHeader,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (response.ok) {
+      const created = await response.json();
+      return { success: true, data: created };
+    } else {
+      const errorText = await response.text();
+      console.error(`Jira API Error (create ${ticketData.type} "${ticketData.summary}"):`, response.status, errorText);
+      errorMessages.push(`Failed to create ${ticketData.type} "${ticketData.summary.substring(0,30)}...": ${response.status}`);
+      return { success: false, error: errorText };
+    }
+  };
+
+  // Recursive function to create tickets and their children
+  async function createTicketsRecursively(ticketList: AnalyzeDocumentOutput, parentJiraKey?: string) {
+    for (const ticket of ticketList) {
+      const result = await createSingleTicket(ticket, parentJiraKey);
+      if (result.success && result.data) {
+        createdTickets.push(result.data);
+        if (ticket.children && ticket.children.length > 0) {
+          // If the created ticket was an Epic, its key is used for Epic Link field.
+          // If it was a Story/Task, its key is used for sub-tasks.
+          const newParentKey = result.data.key;
+          await createTicketsRecursively(ticket.children, newParentKey);
+        }
+      } else {
+        overallSuccess = false;
+      }
+    }
+  }
+
+  await createTicketsRecursively(tickets);
+
+  if (overallSuccess && errorMessages.length === 0) {
+    return { success: true, message: `Successfully created ${createdTickets.length} tickets and their children in Jira.`, createdTickets };
+  } else if (createdTickets.length > 0) {
+     return { success: false, message: `Partially created ${createdTickets.length} tickets. Some failures occurred: ${errorMessages.join('; ')}`, createdTickets };
+  } else {
+    throw new Error(`Failed to create any tickets in Jira. Errors: ${errorMessages.join('; ')}`);
   }
 }
