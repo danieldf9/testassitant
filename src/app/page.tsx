@@ -9,10 +9,10 @@ import { IssueTable } from '@/components/IssueTable';
 import { TestCaseDialog } from '@/components/TestCaseDialog';
 import type { JiraIssue } from '@/app/actions';
 import { Button } from '@/components/ui/button';
-import { LogOut, Info, FileText, ListChecks } from 'lucide-react';
+import { LogOut, Info, FileText, ListChecks, ArrowLeft } from 'lucide-react'; // Added ArrowLeft
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
-import { DocumentTicketCreator } from '@/components/DocumentTicketCreator'; // New component
+import { DocumentTicketCreator } from '@/components/DocumentTicketCreator'; 
 
 type AppMode = 'viewIssues' | 'createFromDocument';
 
@@ -47,19 +47,33 @@ export default function JiraCaseGenPage() {
     setSelectedIssueForTestCases(null);
   };
 
+  const handleBackToModeSelection = () => {
+    setCurrentMode(null);
+  };
+
   if (!isClient) {
-    return null;
+    return null; // Or a basic non-interactive loader
   }
 
   if (!isAuthenticated) {
     return <AuthForm />;
   }
 
+  const getModeTitle = () => {
+    if (currentMode === 'viewIssues' && selectedProjectName) {
+      return `Viewing Issues for ${selectedProjectName}`;
+    }
+    if (currentMode === 'createFromDocument' && selectedProjectName) {
+      return `Creating Tickets from Document for ${selectedProjectName}`;
+    }
+    return '';
+  };
+
   return (
     <div className="container mx-auto p-4 md:p-8">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
         <div className="flex-grow">
-          {credentials && <ProjectSelector selectedProjectId={selectedProjectId} onProjectSelect={handleProjectSelect} />}
+          {credentials && <ProjectSelector selectedProjectId={selectedProjectId} onProjectSelect={handleProjectSelect} disabled={!!currentMode} />}
         </div>
         <Button variant="outline" onClick={logout} className="shadow-sm hover:shadow-md transition-shadow">
           <LogOut className="mr-2 h-4 w-4" /> Disconnect Jira
@@ -129,11 +143,22 @@ export default function JiraCaseGenPage() {
             </CardContent>
           </Card>
         </div>
-      ) : currentMode === 'viewIssues' ? (
-        <IssueTable projectId={selectedProjectId} onGenerateTestCases={handleGenerateTestCases} />
-      ) : currentMode === 'createFromDocument' && selectedProjectId && selectedProjectKey && selectedProjectName ? (
-        <DocumentTicketCreator projectId={selectedProjectId} projectKey={selectedProjectKey} projectName={selectedProjectName} />
-      ) : null}
+      ) : (
+        <div className="mt-6">
+          <div className="flex items-center mb-6">
+            <Button variant="outline" size="sm" onClick={handleBackToModeSelection} className="mr-4">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
+            <h2 className="text-xl font-semibold text-foreground">{getModeTitle()}</h2>
+          </div>
+          {currentMode === 'viewIssues' ? (
+            <IssueTable projectId={selectedProjectId} onGenerateTestCases={handleGenerateTestCases} />
+          ) : currentMode === 'createFromDocument' && selectedProjectId && selectedProjectKey && selectedProjectName ? (
+            <DocumentTicketCreator projectId={selectedProjectId} projectKey={selectedProjectKey} projectName={selectedProjectName} />
+          ) : null}
+        </div>
+      )}
 
       {selectedIssueForTestCases && (
         <TestCaseDialog
