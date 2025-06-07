@@ -17,8 +17,10 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Eye, EyeOff, KeyRound, AtSign, LinkIcon } from 'lucide-react';
+import { Eye, EyeOff, KeyRound, AtSign, LinkIcon, Loader2 } from 'lucide-react';
 import { useState } from 'react';
+import { fetchProjectsAction } from '@/app/actions';
+import { useToast } from '@/hooks/use-toast';
 
 const authSchema = z.object({
   jiraUrl: z.string().url({ message: 'Enter your full Jira instance URL (e.g., https://your-org.atlassian.net or https://jira.yourcompany.com).' }),
@@ -29,8 +31,10 @@ const authSchema = z.object({
 type AuthFormData = z.infer<typeof authSchema>;
 
 export function AuthForm() {
-  const { setCredentials } = useAuth();
+  const { setCredentials, logout } = useAuth();
+  const { toast } = useToast();
   const [showApiToken, setShowApiToken] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const form = useForm<AuthFormData>({
     resolver: zodResolver(authSchema),
@@ -41,8 +45,34 @@ export function AuthForm() {
     },
   });
 
-  function onSubmit(data: AuthFormData) {
-    setCredentials(data);
+  async function onSubmit(data: AuthFormData) {
+    setIsVerifying(true);
+    form.clearErrors(); // Clear previous form errors, if any
+
+    try {
+      // Attempt to fetch projects to validate the credentials
+      await fetchProjectsAction(data);
+      // If successful, set the credentials in the AuthContext
+      setCredentials(data);
+      toast({ 
+        title: "Success", 
+        description: "Successfully connected to Jira.",
+        className: "bg-green-100 border-green-300 text-green-800 dark:bg-green-900 dark:border-green-700 dark:text-green-200" 
+      });
+      // The AuthProvider will update isAuthenticated, and UI should react (e.g., show main page)
+    } catch (error: any) {
+      // If fetchProjectsAction throws an error, it means authentication/connection failed
+      logout(); // Ensure any potentially partially set or invalid credentials are cleared
+      console.error("Authentication error:", error.message);
+      toast({
+        title: "Connection Failed",
+        description: error.message || "Could not connect to Jira. Please check your details and try again.",
+        variant: "destructive",
+        duration: 8000, // Give more time for longer error messages
+      });
+    } finally {
+      setIsVerifying(false);
+    }
   }
 
   return (
@@ -116,8 +146,9 @@ export function AuthForm() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? 'Connecting...' : 'Connect'}
+              <Button type="submit" className="w-full" disabled={isVerifying}>
+                {isVerifying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {isVerifying ? 'Verifying...' : 'Connect'}
               </Button>
             </form>
           </Form>

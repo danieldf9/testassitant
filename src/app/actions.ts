@@ -109,9 +109,39 @@ export async function fetchProjectsAction(credentials: JiraCredentials): Promise
     });
 
     if (!response.ok) {
-      const errorData = await response.text();
-      console.error('Jira API Error (fetchProjects):', response.status, errorData);
-      throw new Error(`Failed to fetch projects from Jira. Status: ${response.status}. ${errorData}`);
+      const errorStatus = response.status;
+      const errorText = await response.text();
+      console.error(`Jira API Error (fetchProjects): Status ${errorStatus}`, errorText);
+
+      let userFriendlyMessage = `Failed to connect to Jira (Status ${errorStatus}). Please check your network connection and Jira status.`;
+
+      if (errorStatus === 401) { // Unauthorized
+        userFriendlyMessage = 'Authentication failed: Invalid email or API token. Please verify your credentials.';
+      } else if (errorStatus === 403) { // Forbidden
+        userFriendlyMessage = 'Access denied: Your account may not have permission to access projects. Please check your Jira permissions.';
+      } else if (errorStatus === 404) { // Not Found
+        userFriendlyMessage = 'Invalid Jira URL or endpoint not found (404). Please verify your Jira URL.';
+      } else {
+        try {
+          const errorJson = JSON.parse(errorText);
+          if (errorJson.errorMessages && errorJson.errorMessages.length > 0) {
+            userFriendlyMessage = `Jira Error: ${errorJson.errorMessages.join('; ')}`;
+          } else if (errorJson.message) {
+            userFriendlyMessage = `Jira Error: ${errorJson.message}`;
+          } else if (errorText.toLowerCase().includes("urlopen error [errno -3] temporary failure in name resolution") || errorText.toLowerCase().includes("econnrefused") || errorText.toLowerCase().includes("enotfound")) {
+             userFriendlyMessage = 'Network Error: Could not resolve or connect to Jira URL. Please check your internet connection and the Jira URL.';
+          } else if (errorText.length > 0 && errorText.length < 200) { 
+            userFriendlyMessage = `Jira API Error (Status ${errorStatus}): ${errorText}`;
+          }
+        } catch (e) {
+          if (errorText.toLowerCase().includes("urlopen error [errno -3] temporary failure in name resolution") || errorText.toLowerCase().includes("econnrefused") || errorText.toLowerCase().includes("enotfound")) {
+             userFriendlyMessage = 'Network Error: Could not resolve or connect to Jira URL. Please check your internet connection and the Jira URL.';
+          } else if (errorText.length > 0 && errorText.length < 200) {
+            userFriendlyMessage = `Jira API Error (Status ${errorStatus}): ${errorText}`;
+          }
+        }
+      }
+      throw new Error(userFriendlyMessage);
     }
 
     const projectsData: any[] = await response.json();
@@ -124,10 +154,10 @@ export async function fetchProjectsAction(credentials: JiraCredentials): Promise
   } catch (error) {
     console.error('Error in fetchProjectsAction:', error);
     if (error instanceof z.ZodError) {
-      throw new Error('Invalid credentials format.');
+      throw new Error('Invalid credentials format provided to fetchProjectsAction.');
     }
     if (error instanceof Error) {
-        throw error;
+        throw error; // Re-throw the (potentially user-friendly) error
     }
     throw new Error('An unexpected error occurred while fetching projects.');
   }
@@ -176,9 +206,17 @@ export async function fetchIssuesAction(
     });
 
     if (!response.ok) {
-      const errorData = await response.text();
-      console.error('Jira API Error (fetchIssues):', response.status, errorData);
-      throw new Error(`Failed to fetch issues. Status: ${response.status}. ${errorData}`);
+      const errorText = await response.text();
+      const errorStatus = response.status;
+      console.error('Jira API Error (fetchIssues):', errorStatus, errorText);
+      // Simplified error handling for fetchIssues, primary auth check is fetchProjects
+      let userFriendlyMessage = `Failed to fetch issues (Status ${errorStatus}).`;
+       if (errorStatus === 401 || errorStatus === 403) {
+        userFriendlyMessage = 'Authentication or permission error while fetching issues. Your session might have expired or permissions changed.';
+      } else if (errorText.length > 0 && errorText.length < 200) {
+        userFriendlyMessage = `Jira API Error (Status ${errorStatus}): ${errorText}`;
+      }
+      throw new Error(userFriendlyMessage);
     }
 
     const issuesData: any = await response.json();
@@ -209,7 +247,7 @@ export async function fetchIssuesAction(
   } catch (error) {
     console.error('Error in fetchIssuesAction:', error);
      if (error instanceof z.ZodError) {
-      throw new Error('Invalid parameters or credentials format.');
+      throw new Error('Invalid parameters or credentials format for fetching issues.');
     }
     if (error instanceof Error) {
         throw error;
@@ -544,4 +582,5 @@ export async function createJiraTicketsAction(
   console.log(`Ticket creation result: ${message}, Success: ${overallSuccess}, Created: ${createdTicketsResult.length}, Intended: ${totalTicketsToCreate}`);
   return { success: overallSuccess, message, createdTickets: createdTicketsResult };
 }
+
 
