@@ -7,6 +7,7 @@ export function JiraLogo(props: SVGProps<SVGSVGElement>) {
       viewBox="0 0 24 24"
       fill="currentColor"
       aria-hidden="true"
+      suppressHydrationWarning
       {...props}
     >
       <path d="M12.01,2.28a1.9,1.9,0,0,0-1.61,2.97L12,8.21l3.53-3.53A1.91,1.91,0,0,0,12.01,2.28Z" />
