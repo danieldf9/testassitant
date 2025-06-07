@@ -419,6 +419,17 @@ export async function analyzeDocumentAction(input: AnalyzeDocumentInput): Promis
   }
 }
 
+function countAllDraftTickets(tickets: DraftTicketRecursive[]): number {
+  let count = 0;
+  for (const ticket of tickets) {
+    count++; // Count the ticket itself
+    if (ticket.children && ticket.children.length > 0) {
+      count += countAllDraftTickets(ticket.children); // Recursively count children
+    }
+  }
+  return count;
+}
+
 export async function createJiraTicketsAction(
   credentials: JiraCredentials,
   params: CreateJiraTicketsInput
@@ -431,11 +442,14 @@ export async function createJiraTicketsAction(
   }
   
   const { jiraUrl, email, apiToken } = validatedCredentials;
-  const { projectId, tickets } = validatedParams.data; 
+  const { projectId, tickets: allTickets } = validatedParams.data; 
 
   const authHeader = `Basic ${Buffer.from(`${email}:${apiToken}`).toString('base64')}`;
   const createdTicketsResult: { key: string; summary: string; type: string }[] = [];
   const errorMessages: string[] = [];
+  
+  const BATCH_SIZE = 10;
+  const totalTicketsToCreate = countAllDraftTickets(allTickets);
 
   const createSingleTicket = async (ticketData: DraftTicketRecursive, parentJiraKey?: string) => {
     const descriptionADF = textToAdf(ticketData.description);
@@ -447,21 +461,14 @@ export async function createJiraTicketsAction(
         issuetype: { name: ticketData.type },
       },
     };
-    // Only add description if it's not null (empty descriptions are allowed by Jira if the field is not required)
     if (descriptionADF && descriptionADF.content && descriptionADF.content.length > 0) {
         payload.fields.description = descriptionADF;
     }
-
 
     if (parentJiraKey && ticketData.type === 'Sub-task') {
       payload.fields.parent = { key: parentJiraKey };
     } 
     
-    // Epic Link: This is a common custom field for linking issues to Epics.
-    // The field ID (e.g., 'customfield_10000') varies between Jira instances.
-    // For now, if an Epic is a parent, we're not linking children to it via this field.
-    // This could be an enhancement if the field ID is known/configurable.
-
     const response = await fetch(`${jiraUrl}/rest/api/3/issue`, {
       method: 'POST',
       headers: {
@@ -476,10 +483,8 @@ export async function createJiraTicketsAction(
       const created = await response.json();
       return { success: true, data: created };
     } else {
-      const errorText = await response.text(); // Get full error text
-      // Log the full error for server-side debugging
+      const errorText = await response.text();
       console.error(`Jira API Error (create ${ticketData.type} "${ticketData.summary.substring(0,50)}...") Status ${response.status}: Full Response: ${errorText}`);
-      // Provide a potentially shortened or parsed error for the user message
       let userFriendlyError = `Status ${response.status}`;
       try {
         const errorJson = JSON.parse(errorText);
@@ -489,6 +494,7 @@ export async function createJiraTicketsAction(
            userFriendlyError += ` - ${Object.entries(errorJson.errors).map(([k,v]) => `${k}: ${v}`).join('. ')}`;
         }
       } catch (e) {
+        // If errorText is not JSON, append a snippet of it
         userFriendlyError += ` - ${errorText.substring(0,100)}${errorText.length > 100 ? '...' : ''}`;
       }
       errorMessages.push(`Failed to create ${ticketData.type} "${ticketData.summary.substring(0,30)}...": ${userFriendlyError}`);
@@ -496,45 +502,46 @@ export async function createJiraTicketsAction(
     }
   };
 
-  async function createTicketsRecursively(ticketList: AnalyzeDocumentOutput, parentJiraKey?: string) {
+  async function createTicketsRecursivelyInternal(ticketList: AnalyzeDocumentOutput, parentJiraKeyForSubtasks?: string) {
     for (const ticket of ticketList) {
-      const result = await createSingleTicket(ticket, parentJiraKey);
+      const result = await createSingleTicket(ticket, parentJiraKeyForSubtasks);
       if (result.success && result.data) {
         createdTicketsResult.push({ key: result.data.key, summary: ticket.summary, type: ticket.type });
         if (ticket.children && ticket.children.length > 0) {
-          // If the current ticket is an Epic, its children (Stories/Tasks) are created as top-level issues
-          // and are NOT automatically linked to the Epic via 'Epic Link' custom field in this version.
-          // Sub-tasks, however, are correctly parented to their Story/Task.
-          const newParentKeyForSubtasks = (ticket.type !== 'Epic') ? result.data.key : undefined;
-          await createTicketsRecursively(ticket.children, newParentKeyForSubtasks);
+          const newParentKeyForChildren = (ticket.type !== 'Epic') ? result.data.key : undefined;
+          await createTicketsRecursivelyInternal(ticket.children, newParentKeyForChildren);
         }
       }
     }
   }
 
-  await createTicketsRecursively(tickets);
-
-  let overallSuccess = errorMessages.length === 0;
-  let message = "";
-
-  if (createdTicketsResult.length > 0 && overallSuccess) {
-    message = `Successfully created ${createdTicketsResult.length} ticket(s)/sub-task(s) in Jira.`;
-  } else if (createdTicketsResult.length > 0 && !overallSuccess) {
-    message = `Partially created ${createdTicketsResult.length} ticket(s)/sub-task(s). Some failures occurred: ${errorMessages.join('; ')}`;
-     overallSuccess = false; // Ensure overallSuccess is false if there are errors
-  } else if (createdTicketsResult.length === 0 && !overallSuccess && tickets.length > 0) {
-    overallSuccess = false; 
-    message = `Failed to create any tickets in Jira. Errors: ${errorMessages.join('; ')}`;
-  } else if (createdTicketsResult.length === 0 && overallSuccess && tickets.length === 0) {
-    message = "No tickets were provided to create.";
-    overallSuccess = true; 
-  } else if (createdTicketsResult.length === 0 && overallSuccess && tickets.length > 0){
-    // This case means no tickets were created, but no errors were explicitly reported by createSingleTicket.
-    // This could happen if createSingleTicket logic had an issue before the fetch, or if tickets array was somehow filtered to empty.
-    message = `No tickets were created, though no explicit errors were reported from Jira. Please check the input or Jira project configuration (e.g., required fields).`;
-    overallSuccess = false;
+  for (let i = 0; i < allTickets.length; i += BATCH_SIZE) {
+    const batch = allTickets.slice(i, i + BATCH_SIZE);
+    console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(allTickets.length/BATCH_SIZE)}: ${batch.length} top-level tickets.`);
+    await createTicketsRecursivelyInternal(batch); 
+    // Optional: Add a small delay here if rate limiting is still an issue after batching
+    // if (i + BATCH_SIZE < allTickets.length) { // Avoid delay after the last batch
+    //   await new Promise(resolve => setTimeout(resolve, 1000)); // 1-second delay
+    // }
   }
 
+  let overallSuccess = errorMessages.length === 0 && createdTicketsResult.length === totalTicketsToCreate;
+  let message = "";
+
+  if (totalTicketsToCreate === 0) {
+      overallSuccess = true; 
+      message = "No tickets were provided to create.";
+  } else if (createdTicketsResult.length > 0 && overallSuccess) {
+    message = `Successfully created all ${createdTicketsResult.length} ticket(s)/sub-task(s) in Jira.`;
+  } else if (createdTicketsResult.length > 0 && !overallSuccess) {
+    message = `Partially created ${createdTicketsResult.length} of ${totalTicketsToCreate} intended ticket(s)/sub-task(s). Failures: ${errorMessages.join('; ')}`;
+     overallSuccess = false; 
+  } else if (createdTicketsResult.length === 0 && !overallSuccess && totalTicketsToCreate > 0) {
+    overallSuccess = false; 
+    message = `Failed to create any of the ${totalTicketsToCreate} intended tickets in Jira. Errors: ${errorMessages.join('; ')}`;
+  }
+  
+  console.log(`Ticket creation result: ${message}, Success: ${overallSuccess}, Created: ${createdTicketsResult.length}, Intended: ${totalTicketsToCreate}`);
   return { success: overallSuccess, message, createdTickets: createdTicketsResult };
 }
 
