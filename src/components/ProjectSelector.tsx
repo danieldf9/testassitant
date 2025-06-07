@@ -70,7 +70,11 @@ export function ProjectSelector({ selectedProjectId, onProjectSelect, disabled }
     return (
       <Alert className="w-full max-w-md">
         <AlertTitle>No Projects Found</AlertTitle>
-        <AlertDescription>No projects were found for your Jira instance, or you may not have permission to view them.</AlertDescription>
+        <AlertDescription>
+          No projects were found for your Jira instance. This could be due to permissions, 
+          an incorrect Jira URL, network issues, or no projects existing for the connected account. 
+          Please verify your Jira connection details and permissions.
+        </AlertDescription>
       </Alert>
     );
   }
@@ -129,3 +133,4 @@ export function ProjectSelector({ selectedProjectId, onProjectSelect, disabled }
     </div>
   );
 }
+
