@@ -95,7 +95,7 @@ export function DocumentTicketCreator({ projectId, projectKey, projectName }: Do
     }
   };
 
-  const handleTicketPropertyChange = useCallback((path: number[], field: keyof DraftTicketRecursive, value: string) => {
+  const handleTicketPropertyChange = useCallback((path: number[], field: keyof Omit<DraftTicketRecursive, 'children' | 'suggestedId'>, value: string) => {
     setDraftedTickets(prevTickets => {
       const newTickets = JSON.parse(JSON.stringify(prevTickets)) as AnalyzeDocumentOutput; 
       
@@ -128,14 +128,14 @@ export function DocumentTicketCreator({ projectId, projectKey, projectName }: Do
         return newTickets;
       }
 
-      let currentParentChildrenList = newTickets;
+      let currentParentChildrenList: any = newTickets; // Explicitly type if possible, or use any if structure is dynamic
       for (let i = 0; i < path.length - 1; i++) {
-        const parent = currentParentChildrenList[path[i]];
-        if (!parent || !parent.children) {
-            console.error("Invalid path for ticket deletion - parent or children missing.", path);
-            return prevTickets; // Path broken or invalid
-        }
-        currentParentChildrenList = parent.children;
+          const parent = currentParentChildrenList[path[i]];
+          if (!parent || !parent.children) {
+              console.error("Invalid path for ticket deletion - parent or children missing.", path);
+              return prevTickets; // Path broken or invalid
+          }
+          currentParentChildrenList = parent.children;
       }
       
       currentParentChildrenList.splice(path[path.length - 1], 1);
@@ -218,16 +218,29 @@ export function DocumentTicketCreator({ projectId, projectKey, projectName }: Do
             </Button>
         </div>
       </CardHeader>
-      <CardContent className="pt-2">
-        <Label htmlFor={`desc-${path.join('-')}`} className="text-xs text-muted-foreground">Description (includes Acceptance Criteria):</Label>
-        <Textarea
-          id={`desc-${path.join('-')}`}
-          value={ticket.description}
-          onChange={(e) => handleTicketPropertyChange(path, 'description', e.target.value)}
-          rows={Math.max(4, ticket.description.split('\n').length)} 
-          className="text-sm mt-1 w-full bg-card"
-          placeholder="Ticket Description (AI will attempt to include Acceptance Criteria here)"
-        />
+      <CardContent className="pt-2 space-y-3">
+        <div>
+            <Label htmlFor={`desc-${path.join('-')}`} className="text-xs text-muted-foreground">Description:</Label>
+            <Textarea
+            id={`desc-${path.join('-')}`}
+            value={ticket.description}
+            onChange={(e) => handleTicketPropertyChange(path, 'description', e.target.value)}
+            rows={Math.max(3, (ticket.description || "").split('\n').length)} 
+            className="text-sm mt-1 w-full bg-card"
+            placeholder="Main ticket description, goals, narrative."
+            />
+        </div>
+        <div>
+            <Label htmlFor={`ac-${path.join('-')}`} className="text-xs text-muted-foreground">Acceptance Criteria (Optional):</Label>
+            <Textarea
+            id={`ac-${path.join('-')}`}
+            value={ticket.acceptanceCriteria || ''}
+            onChange={(e) => handleTicketPropertyChange(path, 'acceptanceCriteria', e.target.value)}
+            rows={Math.max(3, (ticket.acceptanceCriteria || "").split('\n').length)} 
+            className="text-sm mt-1 w-full bg-card"
+            placeholder="Specific, testable acceptance criteria. E.g.,&#10;1. User sees X.&#10;2. System does Y."
+            />
+        </div>
         {ticket.children && ticket.children.length > 0 && (
           <div className="mt-4 pt-3 pl-4 border-l-2 border-dashed border-border/50">
             <h4 className="text-xs font-semibold mb-2 uppercase text-muted-foreground">Children ({ticket.children.length})</h4>
@@ -315,7 +328,7 @@ export function DocumentTicketCreator({ projectId, projectKey, projectName }: Do
               Review and Edit Drafted Tickets
             </CardTitle>
             <CardDescription>
-              Modify the AI-suggested tickets below. When ready, click "Create Tickets in Jira". Ensure summaries and descriptions (including Acceptance Criteria) are complete.
+              Modify the AI-suggested tickets below. When ready, click "Create Tickets in Jira". Ensure descriptions and acceptance criteria are complete.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -341,5 +354,3 @@ export function DocumentTicketCreator({ projectId, projectKey, projectName }: Do
     </div>
   );
 }
-
-

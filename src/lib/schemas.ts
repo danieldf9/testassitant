@@ -22,7 +22,8 @@ export type GenerateTestCasesOutput = z.infer<typeof GenerateTestCasesOutputSche
 const BaseDraftTicketSchema = z.object({
   type: z.enum(['Epic', 'Story', 'Task', 'Sub-task', 'Bug']).describe('The type of Jira issue (Epic, Story, Task, Sub-task, Bug).'),
   summary: z.string().describe('A concise summary for the Jira ticket.'),
-  description: z.string().describe('A detailed description for the Jira ticket, outlining requirements, goals, or steps.'),
+  description: z.string().describe('A detailed description for the Jira ticket, outlining requirements or goals. This should NOT include acceptance criteria.'),
+  acceptanceCriteria: z.string().optional().describe('Specific, measurable, achievable, relevant, and testable acceptance criteria for the ticket.'),
   suggestedId: z.string().optional().describe('An optional AI-suggested Jira-like ID (e.g., PROJECTKEY-123), primarily for epics or top-level stories/tasks for reference. Not for sub-tasks.'),
 });
 
@@ -59,3 +60,4 @@ export const CreateJiraTicketsInputSchema = z.object({
   tickets: AnalyzeDocumentOutputSchema,
 });
 export type CreateJiraTicketsInput = z.infer<typeof CreateJiraTicketsInputSchema>;
+

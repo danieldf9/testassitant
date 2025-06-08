@@ -29,7 +29,7 @@ export interface JiraIssue {
   issueType: string;
   status: string;
   description?: string;
-  acceptanceCriteria?: string;
+  acceptanceCriteria?: string; // This is from a custom field when fetching
   project: {
     id: string;
     key: string;
@@ -53,16 +53,13 @@ function textToAdf(text: string | undefined): any {
     version: 1,
     content: text.split('\n').map(paragraphText => {
       if (paragraphText.trim() === "") {
-        // Represent empty lines as paragraphs with an empty text node if needed,
-        // or filter them out if Jira handles consecutive newlines well.
-        // For now, let's create paragraphs for non-empty lines.
         return null; 
       }
       return {
         type: "paragraph",
         content: [{ type: "text", text: paragraphText.trim() }]
       };
-    }).filter(p => p !== null) // Filter out nulls from empty lines
+    }).filter(p => p !== null) 
   };
 }
 
@@ -209,7 +206,6 @@ export async function fetchIssuesAction(
       const errorText = await response.text();
       const errorStatus = response.status;
       console.error('Jira API Error (fetchIssues):', errorStatus, errorText);
-      // Simplified error handling for fetchIssues, primary auth check is fetchProjects
       let userFriendlyMessage = `Failed to fetch issues (Status ${errorStatus}).`;
        if (errorStatus === 401 || errorStatus === 403) {
         userFriendlyMessage = 'Authentication or permission error while fetching issues. Your session might have expired or permissions changed.';
@@ -490,7 +486,11 @@ export async function createJiraTicketsAction(
   const totalTicketsToCreate = countAllDraftTickets(allTickets);
 
   const createSingleTicket = async (ticketData: DraftTicketRecursive, parentJiraKey?: string) => {
-    const descriptionADF = textToAdf(ticketData.description);
+    let combinedDescriptionText = ticketData.description || "";
+    if (ticketData.acceptanceCriteria && ticketData.acceptanceCriteria.trim() !== "") {
+      combinedDescriptionText += `\n\nAcceptance Criteria:\n${ticketData.acceptanceCriteria.trim()}`;
+    }
+    const descriptionADF = textToAdf(combinedDescriptionText.trim());
 
     const payload: any = {
       fields: {
@@ -557,10 +557,6 @@ export async function createJiraTicketsAction(
     const batch = allTickets.slice(i, i + BATCH_SIZE);
     console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(allTickets.length/BATCH_SIZE)}: ${batch.length} top-level tickets.`);
     await createTicketsRecursivelyInternal(batch); 
-    // Optional: Add a small delay here if rate limiting is still an issue after batching
-    // if (i + BATCH_SIZE < allTickets.length) { // Avoid delay after the last batch
-    //   await new Promise(resolve => setTimeout(resolve, 1000)); // 1-second delay
-    // }
   }
 
   let overallSuccess = errorMessages.length === 0 && createdTicketsResult.length === totalTicketsToCreate;
