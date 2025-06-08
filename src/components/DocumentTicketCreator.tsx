@@ -9,7 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, FileUp, CheckCircle, AlertCircle, Wand2, Edit3, User, Settings2 } from 'lucide-react';
+import { Loader2, FileUp, CheckCircle, AlertCircle, Wand2, Edit3, User, Settings2, Trash2 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
 import { analyzeDocumentAction, createJiraTicketsAction } from '@/app/actions';
 import type { AnalyzeDocumentOutput, DraftTicketRecursive } from '@/lib/schemas';
@@ -20,6 +27,9 @@ interface DocumentTicketCreatorProps {
   projectKey: string;
   projectName: string;
 }
+
+const JIRA_TICKET_TYPES: DraftTicketRecursive['type'][] = ['Epic', 'Story', 'Task', 'Sub-task', 'Bug'];
+
 
 export function DocumentTicketCreator({ projectId, projectKey, projectName }: DocumentTicketCreatorProps) {
   const { credentials } = useAuth();
@@ -68,8 +78,8 @@ export function DocumentTicketCreator({ projectId, projectKey, projectName }: Do
         documentDataUri: fileDataUri,
         projectKey,
         projectName,
-        userPersona: userPersona || undefined, // Pass as undefined if empty
-        outputFormatPreference: outputFormatPreference || undefined, // Pass as undefined if empty
+        userPersona: userPersona || undefined,
+        outputFormatPreference: outputFormatPreference || undefined,
       });
       setDraftedTickets(result);
       if (result.length === 0) {
@@ -85,26 +95,50 @@ export function DocumentTicketCreator({ projectId, projectKey, projectName }: Do
     }
   };
 
-  const handleTicketChange = useCallback((path: number[], field: keyof Omit<DraftTicketRecursive, 'children' | 'type'>, value: string) => {
+  const handleTicketPropertyChange = useCallback((path: number[], field: keyof DraftTicketRecursive, value: string) => {
     setDraftedTickets(prevTickets => {
-      const newTickets = JSON.parse(JSON.stringify(prevTickets)) as AnalyzeDocumentOutput; // Deep copy
+      const newTickets = JSON.parse(JSON.stringify(prevTickets)) as AnalyzeDocumentOutput; 
       
       let currentLevel: any = newTickets;
       for (let i = 0; i < path.length -1; i++) {
         currentLevel = currentLevel[path[i]].children;
          if (!currentLevel) {
              console.error("Invalid path for ticket update - intermediate children missing for path segment", i, "in", path);
-             return prevTickets; // Return original if path is broken
+             return prevTickets;
          }
       }
       
       const targetTicket = currentLevel[path[path.length - 1]];
-      if (targetTicket && field in targetTicket) {
+      if (targetTicket) {
         (targetTicket as any)[field] = value;
       } else {
           console.error("Invalid path or field for ticket update. Ticket not found at path or field invalid:", path, field);
-          return prevTickets; // Return original if ticket or field is invalid
+          return prevTickets;
       }
+      return newTickets;
+    });
+  }, []);
+
+  const handleDeleteTicket = useCallback((path: number[]) => {
+    setDraftedTickets(prevTickets => {
+      const newTickets = JSON.parse(JSON.stringify(prevTickets)) as AnalyzeDocumentOutput;
+
+      if (path.length === 1) { // Top-level ticket
+        newTickets.splice(path[0], 1);
+        return newTickets;
+      }
+
+      let currentParentChildrenList = newTickets;
+      for (let i = 0; i < path.length - 1; i++) {
+        const parent = currentParentChildrenList[path[i]];
+        if (!parent || !parent.children) {
+            console.error("Invalid path for ticket deletion - parent or children missing.", path);
+            return prevTickets; // Path broken or invalid
+        }
+        currentParentChildrenList = parent.children;
+      }
+      
+      currentParentChildrenList.splice(path[path.length - 1], 1);
       return newTickets;
     });
   }, []);
@@ -120,7 +154,7 @@ export function DocumentTicketCreator({ projectId, projectKey, projectName }: Do
     try {
       const result = await createJiraTicketsAction(credentials, {
         projectId,
-        projectKey, // projectKey is part of CreateJiraTicketsInputSchema
+        projectKey,
         tickets: draftedTickets,
       });
       toast({
@@ -130,8 +164,6 @@ export function DocumentTicketCreator({ projectId, projectKey, projectName }: Do
         className: result.success && result.createdTickets.length > 0 && !result.message.toLowerCase().includes("fail") ? "bg-green-100 border-green-300 text-green-800 dark:bg-green-900 dark:border-green-700 dark:text-green-200" : "",
         duration: result.message.length > 100 || !result.success ? 15000 : 7000,
       });
-      // Clear form only if all tickets were successful or no tickets were attempted but operation was 'successful' (e.g. no tickets to create)
-      // Do not clear if there were partial successes/failures
       if (result.success && !result.message.toLowerCase().includes("fail") && !result.message.toLowerCase().includes("partial")) {
         setDraftedTickets([]); 
         setSelectedFile(null);
@@ -148,18 +180,42 @@ export function DocumentTicketCreator({ projectId, projectKey, projectName }: Do
   };
 
   const RenderDraftedTicket = useCallback(({ ticket, path }: { ticket: DraftTicketRecursive, path: number[] }) => (
-    <Card className="mb-4 shadow-md border-l-4 bg-card" style={{ borderColor: ticket.type === 'Epic' ? 'hsl(var(--chart-1))' : ticket.type === 'Story' ? 'hsl(var(--chart-2))' : ticket.type === 'Task' ? 'hsl(var(--chart-3))' : ticket.type === 'Bug' ? 'hsl(var(--destructive))' : 'hsl(var(--muted))' }}>
+    <Card 
+        className="mb-4 shadow-md border-l-4 bg-card" 
+        style={{ borderColor: ticket.type === 'Epic' ? 'hsl(var(--chart-1))' : ticket.type === 'Story' ? 'hsl(var(--chart-2))' : ticket.type === 'Task' ? 'hsl(var(--chart-3))' : ticket.type === 'Bug' ? 'hsl(var(--destructive))' : 'hsl(var(--muted))' }}
+    >
       <CardHeader className="pb-3 pt-4">
         <div className="flex justify-between items-start gap-2">
             <div className="flex-grow">
                 <Input 
                     value={ticket.summary}
-                    onChange={(e) => handleTicketChange(path, 'summary', e.target.value)}
+                    onChange={(e) => handleTicketPropertyChange(path, 'summary', e.target.value)}
                     className="text-md font-semibold p-1 h-auto border-0 focus-visible:ring-1 focus-visible:ring-ring mb-1 bg-transparent"
                     placeholder="Ticket Summary"
                 />
-                <Badge variant="outline" className="text-xs">{ticket.type} {ticket.suggestedId && `(${ticket.suggestedId})`}</Badge>
+                 <div className="flex items-center gap-2 mt-1">
+                    <Select 
+                        value={ticket.type} 
+                        onValueChange={(newType) => handleTicketPropertyChange(path, 'type', newType as DraftTicketRecursive['type'])}
+                    >
+                        <SelectTrigger className="w-[130px] h-7 text-xs px-2 py-1">
+                            <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {JIRA_TICKET_TYPES.map(type => (
+                                <SelectItem key={type} value={type} className="text-xs">
+                                    {type}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    {ticket.suggestedId && <Badge variant="outline" className="text-xs py-0.5">({ticket.suggestedId})</Badge>}
+                </div>
             </div>
+             <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteTicket(path)}>
+                <Trash2 className="h-4 w-4" />
+                <span className="sr-only">Delete ticket</span>
+            </Button>
         </div>
       </CardHeader>
       <CardContent className="pt-2">
@@ -167,7 +223,7 @@ export function DocumentTicketCreator({ projectId, projectKey, projectName }: Do
         <Textarea
           id={`desc-${path.join('-')}`}
           value={ticket.description}
-          onChange={(e) => handleTicketChange(path, 'description', e.target.value)}
+          onChange={(e) => handleTicketPropertyChange(path, 'description', e.target.value)}
           rows={Math.max(4, ticket.description.split('\n').length)} 
           className="text-sm mt-1 w-full bg-card"
           placeholder="Ticket Description (AI will attempt to include Acceptance Criteria here)"
@@ -182,7 +238,7 @@ export function DocumentTicketCreator({ projectId, projectKey, projectName }: Do
         )}
       </CardContent>
     </Card>
-  ), [handleTicketChange]);
+  ), [handleTicketPropertyChange, handleDeleteTicket]);
 
 
   return (
@@ -270,7 +326,7 @@ export function DocumentTicketCreator({ projectId, projectKey, projectName }: Do
             </div>
             <Button onClick={handleCreateTickets} disabled={isCreatingTickets || isAnalyzing || draftedTickets.length === 0} className="mt-6 w-full sm:w-auto">
               {isCreatingTickets ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
-              {isCreatingTickets ? 'Creating Tickets...' : `Create ${draftedTickets.reduce((acc, t) => acc + 1 + (t.children?.length || 0) + (t.children?.reduce((sAcc, sT) => sAcc + (sT.children?.length || 0),0) || 0), 0)} Ticket(s) in Jira`}
+              {isCreatingTickets ? 'Creating Tickets...' : `Create ${draftedTickets.reduce((acc, t) => acc + 1 + (t.children?.reduce((sAcc, sT) => sAcc + 1 + (sT.children?.length || 0),0) || 0), 0)} Ticket(s) in Jira`}
             </Button>
             {creationError && (
               <Alert variant="destructive" className="mt-4">
@@ -285,3 +341,5 @@ export function DocumentTicketCreator({ projectId, projectKey, projectName }: Do
     </div>
   );
 }
+
+
