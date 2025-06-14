@@ -1,9 +1,9 @@
 
 "use server";
 
-import type { JiraCredentials } from '../../srcold/contexts/AuthContext';
-import { generateTestCases, type GenerateTestCasesInput } from '../../srcold/ai/flows/generate-test-cases';
-import { analyzeDocument as analyzeDocumentFlow, type AnalyzeDocumentInput } from '../../srcold/ai/flows/analyze-document-flow';
+import type { JiraCredentials } from '@/legacy/contexts/AuthContext';
+import { generateTestCases, type GenerateTestCasesInput } from '@/legacy/ai/flows/generate-test-cases';
+import { analyzeDocument as analyzeDocumentFlow, type AnalyzeDocumentInput } from '@/legacy/ai/flows/analyze-document-flow';
 import { draftJiraBug as draftJiraBugFlow } from '@/ai/flows/draft-jira-bug-flow';
 
 import {
@@ -253,7 +253,7 @@ export async function fetchProjectsAction(credentials: JiraCredentials): Promise
           } else if (errorStatus === 503 || errorStatus === 502 || errorStatus === 504) {
             userFriendlyMessage = `Jira Service Unavailable (Status ${errorStatus}). The Jira server or a proxy may be temporarily down or overloaded. Please try again later.`;
           } else if (lowerErrorText.includes("<html") || lowerErrorText.includes("<!doctype html")) {
-            userFriendlyMessage = `Jira API Error (Status ${errorStatus}): Received an HTML response instead of JSON. This could be a login page or an error page from a proxy/Jira. Check console for details.`;
+            userFriendlyMessage = `Jira API Error (Status ${errorStatus}): Received an HTML response instead of JSON. This could be a login page or an error page from a proxy/Jira. Check console for details. Snippet: ${errorText.substring(0,100)}...`;
           } else if (errorText.length > 0 && errorText.length < 300) {
             userFriendlyMessage = `Jira API Error (Status ${errorStatus}): ${errorText.replace(/<[^>]+>/g, '').trim()}`;
           } else {

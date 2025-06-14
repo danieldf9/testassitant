@@ -28,7 +28,7 @@ import { Loader2, AlertCircle, Wand2, CheckCircle, FileUp, ListRestart, Save } f
 import ReactMarkdown from 'react-markdown';
 import { draftJiraBugAction, createJiraBugInJiraAction } from '@/app/actions';
 import type { DraftJiraBugOutput, LocalStorageBugTemplate } from '@/lib/schemas';
-import type { JiraCredentials } from '../../srcold/contexts/AuthContext'; // Adjusted path
+import type { JiraCredentials } from '@/legacy/contexts/AuthContext';
 
 interface RaiseBugModalProps {
   isOpen: boolean;
@@ -350,3 +350,5 @@ export function RaiseBugModal({
     </Dialog>
   );
 }
+
+    

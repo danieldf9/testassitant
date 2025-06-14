@@ -1,7 +1,7 @@
 
 "use client";
-import type { JiraCredentials } from '@/contexts/AuthContext';
-import { useAuth } from '@/contexts/AuthContext';
+import type { JiraCredentials } from '@/legacy/contexts/AuthContext';
+import { useAuth } from '@/legacy/contexts/AuthContext';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -157,3 +157,5 @@ export function AuthForm() {
     </div>
   );
 }
+
+    

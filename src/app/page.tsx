@@ -2,13 +2,13 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../srcold/contexts/AuthContext';
-import { AuthForm } from '../../srcold/components/AuthForm';
-import { ProjectSelector } from '../../srcold/components/ProjectSelector';
-import { IssueTable } from '../../srcold/components/IssueTable';
-import { TestCaseDialog } from '../../srcold/components/TestCaseDialog';
-import { DocumentTicketCreator } from '../../srcold/components/DocumentTicketCreator'; 
-import { RaiseBugModal } from '@/components/RaiseBugModal'; // New component
+import { useAuth } from '@/legacy/contexts/AuthContext';
+import { AuthForm } from '@/legacy/components/AuthForm';
+import { ProjectSelector } from '@/legacy/components/ProjectSelector';
+import { IssueTable } from '@/legacy/components/IssueTable';
+import { TestCaseDialog } from '@/legacy/components/TestCaseDialog';
+import { DocumentTicketCreator } from '@/legacy/components/DocumentTicketCreator'; 
+import { RaiseBugModal } from '@/components/RaiseBugModal';
 import type { JiraIssue } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { LogOut, Info, FileText, ListChecks, ArrowLeft, Bug, Eye } from 'lucide-react'; 
