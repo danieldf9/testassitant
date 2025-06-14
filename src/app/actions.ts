@@ -1,16 +1,23 @@
 
 "use server";
 
-import type { JiraCredentials } from '@/contexts/AuthContext';
-import { generateTestCases, type GenerateTestCasesInput } from '@/ai/flows/generate-test-cases';
-import { analyzeDocument as analyzeDocumentFlow, type AnalyzeDocumentInput } from '@/ai/flows/analyze-document-flow';
+import type { JiraCredentials } from '../../srcold/contexts/AuthContext';
+import { generateTestCases, type GenerateTestCasesInput } from '../../srcold/ai/flows/generate-test-cases';
+import { analyzeDocument as analyzeDocumentFlow, type AnalyzeDocumentInput } from '../../srcold/ai/flows/analyze-document-flow';
+import { draftJiraBug as draftJiraBugFlow } from '@/ai/flows/draft-jira-bug-flow';
+
 import {
   type GenerateTestCasesOutput,
   GenerateTestCasesOutputSchema,
   type AnalyzeDocumentOutput,
   type CreateJiraTicketsInput,
   CreateJiraTicketsInputSchema, 
-  type DraftTicketRecursive
+  type DraftTicketRecursive,
+  type DraftJiraBugInput,
+  DraftJiraBugOutputSchema,
+  type DraftJiraBugOutput,
+  type CreateJiraBugPayload,
+  CreateJiraBugPayloadSchema,
 } from '@/lib/schemas';
 import { z } from 'zod';
 
@@ -63,6 +70,103 @@ function textToAdf(text: string | undefined): any {
   };
 }
 
+// Basic Markdown to ADF converter
+function markdownToAdf(markdown: string | undefined): any {
+  if (!markdown || markdown.trim() === "") return null;
+
+  const adfContent: any[] = [];
+  const lines = markdown.split('\n');
+
+  let inList = false;
+  let listType: 'orderedList' | 'bulletList' | null = null;
+  let currentListItems: any[] = [];
+
+  function flushList() {
+    if (inList && listType && currentListItems.length > 0) {
+      adfContent.push({ type: listType, content: currentListItems });
+    }
+    inList = false;
+    listType = null;
+    currentListItems = [];
+  }
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+
+    // Headings
+    if (trimmedLine.startsWith('## ')) {
+      flushList();
+      adfContent.push({
+        type: 'heading',
+        attrs: { level: 2 },
+        content: [{ type: 'text', text: trimmedLine.substring(3).trim() }],
+      });
+      continue;
+    }
+    if (trimmedLine.startsWith('# ')) {
+      flushList();
+      adfContent.push({
+        type: 'heading',
+        attrs: { level: 1 },
+        content: [{ type: 'text', text: trimmedLine.substring(2).trim() }],
+      });
+      continue;
+    }
+
+    // Ordered List Item (e.g., "1. Item")
+    const orderedMatch = trimmedLine.match(/^(\d+)\.\s+(.*)/);
+    if (orderedMatch) {
+      if (!inList || listType !== 'orderedList') {
+        flushList();
+        inList = true;
+        listType = 'orderedList';
+      }
+      currentListItems.push({
+        type: 'listItem',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: orderedMatch[2].trim() }] }],
+      });
+      continue;
+    }
+
+    // Bullet List Item (e.g., "- Item" or "* Item")
+    const bulletMatch = trimmedLine.match(/^[-*]\s+(.*)/);
+    if (bulletMatch) {
+      if (!inList || listType !== 'bulletList') {
+        flushList();
+        inList = true;
+        listType = 'bulletList';
+      }
+      currentListItems.push({
+        type: 'listItem',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: bulletMatch[1].trim() }] }],
+      });
+      continue;
+    }
+    
+    // If not a list item and we were in a list, flush it
+    if (trimmedLine !== "" && inList) {
+        flushList();
+    }
+
+
+    // Paragraphs (non-empty lines)
+    if (trimmedLine !== "") {
+      adfContent.push({
+        type: 'paragraph',
+        content: [{ type: 'text', text: trimmedLine }],
+      });
+    } else if (adfContent.length > 0 && adfContent[adfContent.length-1].type !== 'rule') { 
+        // Allow single empty lines to potentially break paragraphs, but don't add multiple empty paragraphs
+        // This is a simple heuristic; more complex Markdown might need smarter empty line handling
+    }
+  }
+  flushList(); // Ensure any pending list is flushed at the end
+
+  if (adfContent.length === 0) return null;
+
+  return { type: 'doc', version: 1, content: adfContent };
+}
+
 
 function extractTextFromADF(adf: any): string {
   if (!adf) return '';
@@ -108,18 +212,19 @@ export async function fetchProjectsAction(credentials: JiraCredentials): Promise
     if (!response.ok) {
       const errorStatus = response.status;
       const errorText = await response.text();
-      console.error(`Jira API Error (fetchProjects): Status ${errorStatus}`, errorText);
+      console.error(`Jira API Error (fetchProjects): Status ${errorStatus}`, errorText.substring(0, 500)); // Log snippet
 
       let userFriendlyMessage = `Failed to connect to Jira (Status ${errorStatus}). Please check your network connection and Jira status.`;
 
-      if (errorStatus === 401) { // Unauthorized
+      if (errorStatus === 401) { 
         userFriendlyMessage = 'Authentication failed: Invalid email or API token. Please verify your credentials.';
-      } else if (errorStatus === 403) { // Forbidden
+      } else if (errorStatus === 403) { 
         userFriendlyMessage = 'Access denied: Your account may not have permission to access projects. Please check your Jira permissions.';
-      } else if (errorStatus === 404) { // Not Found
+      } else if (errorStatus === 404) { 
         userFriendlyMessage = 'Invalid Jira URL or endpoint not found (404). Please verify your Jira URL.';
       } else {
         try {
+          // Attempt to parse as JSON first
           const errorJson = JSON.parse(errorText);
           if (errorJson.errorMessages && errorJson.errorMessages.length > 0) {
             userFriendlyMessage = `Jira Error: ${errorJson.errorMessages.join('; ')}`;
@@ -127,14 +232,20 @@ export async function fetchProjectsAction(credentials: JiraCredentials): Promise
             userFriendlyMessage = `Jira Error: ${errorJson.message}`;
           } else if (errorText.toLowerCase().includes("urlopen error [errno -3] temporary failure in name resolution") || errorText.toLowerCase().includes("econnrefused") || errorText.toLowerCase().includes("enotfound")) {
              userFriendlyMessage = 'Network Error: Could not resolve or connect to Jira URL. Please check your internet connection and the Jira URL.';
-          } else if (errorText.length > 0 && errorText.length < 200) { 
-            userFriendlyMessage = `Jira API Error (Status ${errorStatus}): ${errorText}`;
+          } else if (errorText.length > 0 && errorText.length < 300) { 
+            userFriendlyMessage = `Jira API Error (Status ${errorStatus}): ${errorText.replace(/<[^>]+>/g, '').trim()}`; // Strip HTML for brevity
+          } else {
+            userFriendlyMessage = `Jira API Error (Status ${errorStatus}): An unexpected response format was received. Check console for details.`;
           }
-        } catch (e) {
+        } catch (e) { // If not JSON, handle as plain text
           if (errorText.toLowerCase().includes("urlopen error [errno -3] temporary failure in name resolution") || errorText.toLowerCase().includes("econnrefused") || errorText.toLowerCase().includes("enotfound")) {
              userFriendlyMessage = 'Network Error: Could not resolve or connect to Jira URL. Please check your internet connection and the Jira URL.';
-          } else if (errorText.length > 0 && errorText.length < 200) {
-            userFriendlyMessage = `Jira API Error (Status ${errorStatus}): ${errorText}`;
+          } else if (errorText.length > 0 && errorText.length < 300) {
+            userFriendlyMessage = `Jira API Error (Status ${errorStatus}): ${errorText.replace(/<[^>]+>/g, '').trim()}`; // Strip HTML
+          } else if (errorStatus === 503 || errorStatus === 502 || errorStatus === 504) {
+            userFriendlyMessage = `Jira Service Unavailable (Status ${errorStatus}). The Jira server or a proxy may be temporarily down or overloaded. Please try again later.`;
+          } else {
+             userFriendlyMessage = `Jira API Error (Status ${errorStatus}): An unexpected response was received. Check console for more details.`;
           }
         }
       }
@@ -210,7 +321,7 @@ export async function fetchIssuesAction(
        if (errorStatus === 401 || errorStatus === 403) {
         userFriendlyMessage = 'Authentication or permission error while fetching issues. Your session might have expired or permissions changed.';
       } else if (errorText.length > 0 && errorText.length < 200) {
-        userFriendlyMessage = `Jira API Error (Status ${errorStatus}): ${errorText}`;
+        userFriendlyMessage = `Jira API Error (Status ${errorStatus}): ${errorText.replace(/<[^>]+>/g, '').trim()}`;
       }
       throw new Error(userFriendlyMessage);
     }
@@ -349,7 +460,7 @@ export async function attachTestCasesToJiraAction(
       if (!attachResponse.ok) {
         const errorText = await attachResponse.text();
         console.error(`Jira API Error (attach CSV for ${issueKey}):`, attachResponse.status, errorText);
-        throw new Error(`Failed to attach CSV to ${issueKey}. Status: ${attachResponse.status}. ${errorText}`);
+        throw new Error(`Failed to attach CSV to ${issueKey}. Status: ${attachResponse.status}. ${errorText.replace(/<[^>]+>/g, '').trim()}`);
       }
       const attachmentResult = await attachResponse.json();
       return { success: true, message: `Successfully attached ${attachmentResult.length > 0 ? attachmentResult[0].filename : 'test cases'} as CSV to ${issueKey}.` };
@@ -405,7 +516,7 @@ export async function attachTestCasesToJiraAction(
         } else {
           const errorText = await createResponse.text();
           console.error(`Jira API Error (create sub-task for ${tc.testCaseId} under ${issueKey}):`, createResponse.status, errorText);
-          errorMessages.push(`Failed to create sub-task for "${tc.testCaseName.substring(0,30)}...": ${createResponse.status} - ${errorText.substring(0, 100)}`);
+          errorMessages.push(`Failed to create sub-task for "${tc.testCaseName.substring(0,30)}...": ${createResponse.status} - ${errorText.substring(0, 100).replace(/<[^>]+>/g, '').trim()}`);
         }
       }
 
@@ -532,8 +643,7 @@ export async function createJiraTicketsAction(
            userFriendlyError += ` - ${Object.entries(errorJson.errors).map(([k,v]) => `${k}: ${v}`).join('. ')}`;
         }
       } catch (e) {
-        // If errorText is not JSON, append a snippet of it
-        userFriendlyError += ` - ${errorText.substring(0,100)}${errorText.length > 100 ? '...' : ''}`;
+        userFriendlyError += ` - ${errorText.substring(0,100).replace(/<[^>]+>/g, '').trim()}${errorText.length > 100 ? '...' : ''}`;
       }
       errorMessages.push(`Failed to create ${ticketData.type} "${ticketData.summary.substring(0,30)}...": ${userFriendlyError}`);
       return { success: false, error: userFriendlyError };
@@ -579,4 +689,166 @@ export async function createJiraTicketsAction(
   return { success: overallSuccess, message, createdTickets: createdTicketsResult };
 }
 
+// Action to call the AI flow for drafting a bug report
+export async function draftJiraBugAction(input: DraftJiraBugInput): Promise<DraftJiraBugOutput> {
+  try {
+    console.log('Drafting Jira bug for project:', input.projectKey, 'Attachment:', input.attachmentFilename);
+    const result = await draftJiraBugFlow(input);
+    // Validate with Zod schema before returning (optional, but good practice)
+    return DraftJiraBugOutputSchema.parse(result); 
+  } catch (error) {
+    console.error("Error in draftJiraBugAction:", error);
+    let friendlyMessage = "Failed to draft bug report due to an AI processing error.";
+    if (error instanceof z.ZodError) {
+        friendlyMessage = "AI returned an unexpected format for the bug draft.";
+    } else if (error instanceof Error && error.message) {
+      if (error.message.includes("503 Service Unavailable") || error.message.includes("model is overloaded")) {
+        friendlyMessage = "The AI model is currently overloaded. Please try again in a few moments.";
+      } else if (error.message.includes("429 Too Many Requests") || error.message.includes("quota exceeded")) {
+        friendlyMessage = "AI model quota exceeded. Please check your Google AI plan and billing details.";
+      } else {
+        friendlyMessage = `Failed to draft bug: ${error.message}`;
+      }
+    }
+    throw new Error(friendlyMessage);
+  }
+}
 
+// Action to create the bug in Jira
+export async function createJiraBugInJiraAction(
+  credentials: JiraCredentials,
+  bugData: CreateJiraBugPayload,
+  attachmentDataUri?: string, // Base64 data URI
+  attachmentFileName?: string // Original filename
+): Promise<{ success: boolean; message: string; ticketKey?: string; ticketUrl?: string }> {
+  const validatedCredentials = CredentialsSchema.parse(credentials);
+  const validatedBugData = CreateJiraBugPayloadSchema.parse(bugData);
+
+  const { jiraUrl, email, apiToken } = validatedCredentials;
+  const { projectId, summary, descriptionMarkdown, identifiedEnvironment } = validatedBugData;
+
+  const authHeader = `Basic ${Buffer.from(`${email}:${apiToken}`).toString('base64')}`;
+  
+  // Convert Markdown description to ADF
+  const descriptionADF = markdownToAdf(descriptionMarkdown);
+
+  const issuePayload = {
+    fields: {
+      project: { id: projectId },
+      summary: summary,
+      issuetype: { name: "Bug" },
+      description: descriptionADF,
+      // You might want to map 'identifiedEnvironment' to a custom Jira field if one exists.
+      // For now, it's part of the description. Example for a custom field:
+      // customfield_XXXXX: { value: identifiedEnvironment }, 
+    },
+  };
+
+  try {
+    // 1. Create the issue
+    const createIssueResponse = await fetch(`${jiraUrl}/rest/api/3/issue`, {
+      method: 'POST',
+      headers: {
+        'Authorization': authHeader,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(issuePayload),
+    });
+
+    if (!createIssueResponse.ok) {
+      const errorText = await createIssueResponse.text();
+      console.error(`Jira API Error (create bug): Status ${createIssueResponse.status}`, errorText);
+       let userFriendlyError = `Status ${createIssueResponse.status}`;
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.errorMessages && errorJson.errorMessages.length > 0) {
+          userFriendlyError += ` - ${errorJson.errorMessages.join('. ')}`;
+        } else if (errorJson.errors) {
+           userFriendlyError += ` - ${Object.entries(errorJson.errors).map(([k,v]) => `${k}: ${v}`).join('. ')}`;
+        } else {
+            userFriendlyError += ` - ${errorText.substring(0,150).replace(/<[^>]+>/g, '').trim()}`;
+        }
+      } catch (e) {
+        userFriendlyError += ` - ${errorText.substring(0,150).replace(/<[^>]+>/g, '').trim()}`;
+      }
+      throw new Error(`Failed to create bug in Jira: ${userFriendlyError}`);
+    }
+
+    const createdIssue = await createIssueResponse.json();
+    const issueKey = createdIssue.key;
+    const ticketUrl = `${jiraUrl}/browse/${issueKey}`;
+
+    // 2. Attach file if provided
+    if (attachmentDataUri && attachmentFileName && issueKey) {
+      try {
+        const base64Data = attachmentDataUri.split(',')[1];
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: attachmentDataUri.split(',')[0].split(':')[1].split(';')[0] });
+        
+        const formData = new FormData();
+        formData.append('file', blob, attachmentFileName);
+
+        const attachResponse = await fetch(`${jiraUrl}/rest/api/3/issue/${issueKey}/attachments`, {
+          method: 'POST',
+          headers: {
+            'Authorization': authHeader,
+            'Accept': 'application/json',
+            'X-Atlassian-Token': 'no-check',
+          },
+          body: formData,
+        });
+
+        if (!attachResponse.ok) {
+          const attachErrorText = await attachResponse.text();
+          console.error(`Jira API Error (attach file to ${issueKey}): Status ${attachResponse.status}`, attachErrorText);
+          // Don't fail the whole operation, just warn about attachment failure
+          return { 
+            success: true, // Issue created, attachment failed
+            message: `Bug ${issueKey} created, but failed to attach ${attachmentFileName}. Status: ${attachResponse.status}. ${attachErrorText.substring(0,100).replace(/<[^>]+>/g, '').trim()}`,
+            ticketKey,
+            ticketUrl,
+          };
+        }
+        await attachResponse.json(); // Consume response
+         return { 
+            success: true, 
+            message: `Bug ${issueKey} created successfully with attachment ${attachmentFileName}.`,
+            ticketKey,
+            ticketUrl
+        };
+
+      } catch (attachError: any) {
+         console.error(`Error processing or attaching file to ${issueKey}:`, attachError);
+         return {
+            success: true, // Issue created, attachment processing failed
+            message: `Bug ${issueKey} created, but failed to process or attach file: ${attachError.message}`,
+            ticketKey,
+            ticketUrl,
+         }
+      }
+    }
+
+    return { 
+        success: true, 
+        message: `Bug ${issueKey} created successfully.`,
+        ticketKey,
+        ticketUrl
+    };
+
+  } catch (error) {
+    console.error('Error in createJiraBugInJiraAction:', error);
+    if (error instanceof z.ZodError) {
+      throw new Error('Invalid data provided for creating Jira bug.');
+    }
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('An unexpected error occurred while creating the bug in Jira.');
+  }
+}

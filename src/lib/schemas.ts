@@ -53,7 +53,6 @@ export const AnalyzeDocumentInputSchema = z.object({
 export type AnalyzeDocumentInput = z.infer<typeof AnalyzeDocumentInputSchema>;
 
 // Schema for creating tickets in Jira (will be used by createJiraTicketsAction)
-// This is similar to AnalyzeDocumentOutputSchema but represents the state before creation.
 export const CreateJiraTicketsInputSchema = z.object({
   projectId: z.string().describe("The Jira Project ID where tickets will be created."),
   projectKey: z.string().describe("The Jira Project Key."),
@@ -61,3 +60,39 @@ export const CreateJiraTicketsInputSchema = z.object({
 });
 export type CreateJiraTicketsInput = z.infer<typeof CreateJiraTicketsInputSchema>;
 
+
+// Schemas for Drafting Jira Bug Reports
+export const DraftJiraBugInputSchema = z.object({
+  rawDescription: z.string().describe('The raw text description of the bug provided by the user. May include URLs or pasted content.'),
+  environmentHint: z.string().optional().describe('A hint for the environment (e.g., QA, PROD, Staging, Development). The AI should try to confirm or override this based on rawDescription.'),
+  attachmentFilename: z.string().optional().describe('The filename of the attachment, if any.'),
+  projectKey: z.string().describe('The key of the Jira project (e.g., PROJ).'),
+});
+export type DraftJiraBugInput = z.infer<typeof DraftJiraBugInputSchema>;
+
+export const DraftJiraBugOutputSchema = z.object({
+  summary: z.string().describe('A concise, AI-generated summary/title for the bug report.'),
+  descriptionMarkdown: z.string().describe('A detailed, AI-generated description of the bug in Markdown format. This should include sections like "## Issue", "## Environment", "## Steps to Reproduce".'),
+  identifiedEnvironment: z.string().describe('The environment identified or confirmed by the AI (e.g., QA, PROD, Staging, Development).'),
+  attachmentName: z.string().optional().describe('The name of the attachment to be listed in the description (if provided in input).'),
+});
+export type DraftJiraBugOutput = z.infer<typeof DraftJiraBugOutputSchema>;
+
+// Schema for data to be stored in localStorage for bug templates
+export const LocalStorageBugTemplateSchema = z.object({
+  projectId: z.string(),
+  summary: z.string(),
+  rawDescription: z.string(), // Store the user's original raw input
+  environment: z.string(),
+  // We don't store attachment info in the template, as that's unique per bug report
+});
+export type LocalStorageBugTemplate = z.infer<typeof LocalStorageBugTemplateSchema>;
+
+// Schema for creating a bug in Jira (used by createJiraBugInJiraAction)
+export const CreateJiraBugPayloadSchema = z.object({
+    projectId: z.string().describe("The Jira Project ID where the bug will be created."),
+    summary: z.string().describe("The summary/title of the bug."),
+    descriptionMarkdown: z.string().describe("The full bug description in Markdown format (will be converted to ADF)."),
+    identifiedEnvironment: z.string().describe("The environment where the bug was observed."),
+});
+export type CreateJiraBugPayload = z.infer<typeof CreateJiraBugPayloadSchema>;
