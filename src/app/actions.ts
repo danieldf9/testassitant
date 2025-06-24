@@ -4,6 +4,7 @@
 import type { JiraCredentials } from '@/contexts/AuthContext';
 import { draftJiraBug as draftJiraBugFlow } from '@/ai/flows/draft-jira-bug-flow';
 import { generateTestCases as generateTestCasesFlow, type GenerateTestCasesInput } from '@/ai/flows/generate-test-cases';
+import { generatePlaywrightCode as generatePlaywrightCodeFlow, type GeneratePlaywrightCodeInput } from '@/ai/flows/generate-playwright-code';
 import * as ExcelJS from 'exceljs';
 
 import {
@@ -14,6 +15,8 @@ import {
   type DraftJiraBugOutput,
   type CreateJiraBugPayload,
   CreateJiraBugPayloadSchema,
+  GeneratePlaywrightCodeOutputSchema,
+  type GeneratePlaywrightCodeOutput,
 } from '@/lib/schemas';
 import { z } from 'zod';
 
@@ -489,6 +492,24 @@ export async function generateTestCasesAction(input: GenerateTestCasesInput): Pr
     throw new Error(friendlyMessage);
   }
 }
+
+// Playwright Code Generation Action
+export async function generatePlaywrightCodeAction(input: GeneratePlaywrightCodeInput): Promise<GeneratePlaywrightCodeOutput> {
+    try {
+        const result = await generatePlaywrightCodeFlow(input);
+        return GeneratePlaywrightCodeOutputSchema.parse(result);
+    } catch (error: any) {
+        console.error("Error in generatePlaywrightCodeAction:", error);
+        let friendlyMessage = "Failed to generate Playwright code due to an AI processing error.";
+        if (error instanceof z.ZodError) {
+            friendlyMessage = "AI returned an unexpected format for the Playwright code.";
+        } else if (error.message) {
+            friendlyMessage = `Failed to generate code: ${error.message}`;
+        }
+        throw new Error(friendlyMessage);
+    }
+}
+
 
 const AttachTestCasesInputSchema = z.object({
   issueKey: z.string(),

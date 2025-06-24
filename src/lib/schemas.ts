@@ -23,25 +23,6 @@ export const GenerateTestCasesOutputSchema = z.array(TestCaseSchema).describe('A
 export type GenerateTestCasesOutput = z.infer<typeof GenerateTestCasesOutputSchema>;
 
 
-// Schemas for Document Analysis and Jira Ticket Drafting
-const BaseDraftTicketSchema = z.object({
-  type: z.enum(['Epic', 'Story', 'Task', 'Sub-task', 'Bug']).describe('The type of Jira issue (Epic, Story, Task, Sub-task, Bug).'),
-  summary: z.string().describe('A concise summary for the Jira ticket.'),
-  description: z.string().describe('A detailed description for the Jira ticket, outlining requirements or goals. This should NOT include acceptance criteria.'),
-  acceptanceCriteria: z.string().optional().describe('Specific, measurable, achievable, relevant, and testable acceptance criteria for the ticket.'),
-  suggestedId: z.string().optional().describe('An optional AI-suggested Jira-like ID (e.g., PROJECTKEY-123), primarily for epics or top-level stories/tasks for reference. Not for sub-tasks.'),
-});
-
-// Recursive schema for children
-export type DraftTicketRecursive = z.infer<typeof BaseDraftTicketSchema> & {
-  children?: DraftTicketRecursive[];
-};
-
-export const DraftTicketSchema: z.ZodType<DraftTicketRecursive> = BaseDraftTicketSchema.extend({
-  children: z.lazy(() => DraftTicketSchema.array().optional()),
-});
-
-
 // Schemas for Drafting Jira Bug Reports
 export const DraftJiraBugInputSchema = z.object({
   rawDescription: z.string().describe('The raw text description of the bug provided by the user. May include URLs or pasted content.'),
@@ -65,7 +46,6 @@ export const LocalStorageBugTemplateSchema = z.object({
   summary: z.string(),
   rawDescription: z.string(), // Store the user's original raw input
   environment: z.string(),
-  // We don't store attachment info in the template, as that's unique per bug report
 });
 export type LocalStorageBugTemplate = z.infer<typeof LocalStorageBugTemplateSchema>;
 
@@ -77,3 +57,24 @@ export const CreateJiraBugPayloadSchema = z.object({
     identifiedEnvironment: z.string().describe("The environment where the bug was observed."),
 });
 export type CreateJiraBugPayload = z.infer<typeof CreateJiraBugPayloadSchema>;
+
+// Schemas for Playwright Code Generation
+export const PlaywrightSetupSchema = z.object({
+  baseUrl: z.string().url({ message: "Please enter a valid URL." }).describe("The base URL of the application under test."),
+  authFlow: z.string().optional().describe("A natural language description of the authentication process."),
+  commonSelectors: z.string().optional().describe("Key-value pairs of common selectors (e.g., loginButton: '#login-btn'). One per line."),
+  boilerplate: z.string().optional().describe("Boilerplate code to include at the start of every test file (e.g., imports, beforeEach)."),
+});
+export type PlaywrightSetup = z.infer<typeof PlaywrightSetupSchema>;
+
+export const GeneratePlaywrightCodeInputSchema = z.object({
+  testCases: GenerateTestCasesOutputSchema.describe("The array of test cases to convert to Playwright code."),
+  playwrightSetup: PlaywrightSetupSchema.describe("The project-specific setup and context for Playwright."),
+  projectName: z.string().describe("The name of the project for which the tests are being generated."),
+});
+export type GeneratePlaywrightCodeInput = z.infer<typeof GeneratePlaywrightCodeInputSchema>;
+
+export const GeneratePlaywrightCodeOutputSchema = z.object({
+    playwrightCode: z.string().describe("The generated Playwright test code as a single string."),
+});
+export type GeneratePlaywrightCodeOutput = z.infer<typeof GeneratePlaywrightCodeOutputSchema>;

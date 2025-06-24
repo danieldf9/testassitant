@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, Settings, HelpCircle } from 'lucide-react'; // Added HelpCircle
+import { Menu, Settings, HelpCircle, Code } from 'lucide-react'; 
 import { JiraLogo } from '@/components/icons/JiraLogo';
 
 export function AppHeader() {
@@ -18,15 +18,16 @@ export function AppHeader() {
 
         <div className="hidden items-center gap-2 md:flex">
           <Button variant="ghost" asChild>
-            <Link href="/setup">
-              <Settings className="mr-2 h-4 w-4" suppressHydrationWarning />
-              Setup
+            <Link href="/playwright-setup">
+              <Code className="mr-2 h-4 w-4" suppressHydrationWarning />
+              Playwright Setup
             </Link>
           </Button>
-          <Button variant="ghost" size="icon" asChild  className="text-muted-foreground hover:text-foreground">
-             <Link href="/setup" aria-label="Help and Setup">
-                <HelpCircle className="h-5 w-5" suppressHydrationWarning />
-             </Link>
+          <Button variant="ghost" asChild>
+            <Link href="/setup">
+              <Settings className="mr-2 h-4 w-4" suppressHydrationWarning />
+              Jira Setup
+            </Link>
           </Button>
         </div>
 
@@ -44,19 +45,19 @@ export function AppHeader() {
                   <JiraLogo className="h-6 w-6 text-primary" suppressHydrationWarning />
                   <span>JiraCaseGen</span>
                 </Link>
+                 <Link
+                  href="/playwright-setup"
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground hover:text-foreground"
+                >
+                  <Code className="h-5 w-5" suppressHydrationWarning />
+                  Playwright Setup
+                </Link>
                 <Link
                   href="/setup"
                   className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground hover:text-foreground"
                 >
                   <Settings className="h-5 w-5" suppressHydrationWarning />
-                  Setup
-                </Link>
-                 <Link
-                  href="/setup" // Or a dedicated help page later
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground hover:text-foreground"
-                >
-                  <HelpCircle className="h-5 w-5" suppressHydrationWarning />
-                  Help
+                  Jira Setup
                 </Link>
               </nav>
             </SheetContent>
