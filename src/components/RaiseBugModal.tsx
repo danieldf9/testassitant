@@ -13,6 +13,13 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -28,6 +35,7 @@ import { Loader2, AlertCircle, Wand2, CheckCircle, FileUp, ListRestart, Save } f
 import ReactMarkdown from 'react-markdown';
 import { draftJiraBugAction, createJiraBugInJiraAction } from '@/app/actions';
 import type { DraftJiraBugOutput, LocalStorageBugTemplate } from '@/lib/schemas';
+import { useAuth } from '@/contexts/AuthContext';
 import type { JiraCredentials } from '@/contexts/AuthContext';
 
 interface RaiseBugModalProps {
@@ -36,7 +44,6 @@ interface RaiseBugModalProps {
   projectId: string;
   projectKey: string;
   projectName: string;
-  credentials: JiraCredentials;
 }
 
 const JIRA_ENVIRONMENTS = ["QA", "PROD", "Staging", "Development", "Other"];
@@ -47,9 +54,9 @@ export function RaiseBugModal({
     projectId, 
     projectKey, 
     projectName, 
-    credentials 
 }: RaiseBugModalProps) {
   const { toast } = useToast();
+  const { credentials } = useAuth();
   
   const [rawDescription, setRawDescription] = useState('');
   const [selectedEnvironment, setSelectedEnvironment] = useState('QA');
