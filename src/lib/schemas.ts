@@ -25,8 +25,7 @@ export type GenerateTestCasesOutput = z.infer<typeof GenerateTestCasesOutputSche
 
 // Schemas for Drafting Jira Bug Reports
 export const DraftJiraBugInputSchema = z.object({
-  actualBehaviour: z.string().describe("The user's description of what is actually happening."),
-  expectedBehaviour: z.string().describe("The user's description of what should be happening."),
+  rawDescription: z.string().describe("The user's free-form text description of the bug. It might contain reproduction steps, what happened, and what was expected."),
   environmentHint: z.string().optional().describe('A hint for the environment (e.g., QA, PROD, Staging, Development). The AI should try to confirm or override this based on rawDescription.'),
   attachmentFilename: z.string().optional().describe('The filename of the attachment, if any.'),
   projectKey: z.string().describe('The key of the Jira project (e.g., PROJ).'),
@@ -44,9 +43,7 @@ export type DraftJiraBugOutput = z.infer<typeof DraftJiraBugOutputSchema>;
 // Schema for data to be stored in localStorage for bug templates
 export const LocalStorageBugTemplateSchema = z.object({
   projectId: z.string(),
-  summary: z.string(),
-  actualBehaviour: z.string(),
-  expectedBehaviour: z.string(),
+  rawDescription: z.string(),
   environment: z.string(),
 });
 export type LocalStorageBugTemplate = z.infer<typeof LocalStorageBugTemplateSchema>;
