@@ -8,7 +8,7 @@ import { PlaywrightSetupSchema, type PlaywrightSetup, type GenerateTestCasesOutp
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { ProjectSelector } from '@/components/ProjectSelector';
-import { IssueTable } from '@/components/ui/IssueTable';
+import { IssueTable } from '@/components/IssueTable';
 import { generateTestCasesAction, generatePlaywrightCodeAction, type JiraIssue } from '@/app/actions';
 import { Bot, Info, Loader2, AlertCircle, Wand2, Clipboard, Check, Table as TableIcon, Code } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
