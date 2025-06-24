@@ -31,12 +31,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, AlertCircle, Wand2, CheckCircle, FileUp, ListRestart, Save } from 'lucide-react';
+import { Loader2, AlertCircle, Wand2, CheckCircle, FileUp, ListRestart } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { draftJiraBugAction, createJiraBugInJiraAction } from '@/app/actions';
 import type { DraftJiraBugOutput, LocalStorageBugTemplate } from '@/lib/schemas';
 import { useAuth } from '@/contexts/AuthContext';
-import type { JiraCredentials } from '@/contexts/AuthContext';
 
 interface RaiseBugModalProps {
   isOpen: boolean;
@@ -58,7 +57,8 @@ export function RaiseBugModal({
   const { toast } = useToast();
   const { credentials } = useAuth();
   
-  const [rawDescription, setRawDescription] = useState('');
+  const [actualBehaviour, setActualBehaviour] = useState('');
+  const [expectedBehaviour, setExpectedBehaviour] = useState('');
   const [selectedEnvironment, setSelectedEnvironment] = useState('QA');
   const [otherEnvironment, setOtherEnvironment] = useState('');
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
@@ -74,7 +74,8 @@ export function RaiseBugModal({
   const localStorageKey = `bugTemplate_${projectId}`;
 
   const resetForm = useCallback(() => {
-    setRawDescription('');
+    setActualBehaviour('');
+    setExpectedBehaviour('');
     setSelectedEnvironment('QA');
     setOtherEnvironment('');
     setAttachmentFile(null);
@@ -106,8 +107,8 @@ export function RaiseBugModal({
   };
 
   const handlePreviewBug = async () => {
-    if (!rawDescription.trim()) {
-      toast({ title: "Input Required", description: "Please enter a bug description.", variant: "destructive" });
+    if (!actualBehaviour.trim() || !expectedBehaviour.trim()) {
+      toast({ title: "Input Required", description: "Please describe both the actual and expected behaviour.", variant: "destructive" });
       return;
     }
     setIsDrafting(true);
@@ -116,7 +117,8 @@ export function RaiseBugModal({
     try {
       const env = selectedEnvironment === 'Other' ? otherEnvironment : selectedEnvironment;
       const result = await draftJiraBugAction({
-        rawDescription,
+        actualBehaviour,
+        expectedBehaviour,
         environmentHint: env,
         attachmentFilename: attachmentFile?.name,
         projectKey,
@@ -183,8 +185,9 @@ export function RaiseBugModal({
         // Save template to localStorage
         const templateToSave: LocalStorageBugTemplate = {
           projectId,
-          summary: draftedBug.summary, // Save AI drafted summary
-          rawDescription: rawDescription, // Save user's original raw input for re-editing
+          summary: draftedBug.summary,
+          actualBehaviour: actualBehaviour,
+          expectedBehaviour: expectedBehaviour,
           environment: draftedBug.identifiedEnvironment,
         };
         localStorage.setItem(localStorageKey, JSON.stringify(templateToSave));
@@ -203,7 +206,8 @@ export function RaiseBugModal({
       const storedTemplate = localStorage.getItem(localStorageKey);
       if (storedTemplate) {
         const template: LocalStorageBugTemplate = JSON.parse(storedTemplate);
-        setRawDescription(template.rawDescription);
+        setActualBehaviour(template.actualBehaviour);
+        setExpectedBehaviour(template.expectedBehaviour);
         if (JIRA_ENVIRONMENTS.includes(template.environment)) {
             setSelectedEnvironment(template.environment);
             setOtherEnvironment('');
@@ -232,23 +236,38 @@ export function RaiseBugModal({
         <DialogHeader className="p-6 pb-4 border-b">
           <DialogTitle className="text-2xl">Raise Bug for {projectName} ({projectKey})</DialogTitle>
           <DialogDescription>
-            Describe the bug, add an attachment if needed, and let AI help draft the Jira ticket.
+            Describe the actual vs expected behaviour, add an attachment if needed, and let AI help draft the Jira ticket.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-grow overflow-y-auto p-6 space-y-6">
-          <div>
-            <Label htmlFor="bug-description">Bug Description *</Label>
-            <Textarea
-              id="bug-description"
-              value={rawDescription}
-              onChange={(e) => setRawDescription(e.target.value)}
-              placeholder="Describe the bug in detail. What happened? What did you expect? Include steps if possible, or any relevant URLs."
-              rows={8}
-              className="mt-1"
-              disabled={isDrafting || isCreating}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <Label htmlFor="actual-behaviour">Actual Behaviour *</Label>
+                <Textarea
+                  id="actual-behaviour"
+                  value={actualBehaviour}
+                  onChange={(e) => setActualBehaviour(e.target.value)}
+                  placeholder="Describe what is currently happening. Include steps to reproduce, or any relevant URLs or error messages."
+                  rows={8}
+                  className="mt-1"
+                  disabled={isDrafting || isCreating}
+                />
+              </div>
+              <div>
+                <Label htmlFor="expected-behaviour">Expected Behaviour *</Label>
+                <Textarea
+                  id="expected-behaviour"
+                  value={expectedBehaviour}
+                  onChange={(e) => setExpectedBehaviour(e.target.value)}
+                  placeholder="Describe what you expected to happen."
+                  rows={8}
+                  className="mt-1"
+                  disabled={isDrafting || isCreating}
+                />
+              </div>
           </div>
+
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -295,7 +314,7 @@ export function RaiseBugModal({
           </div>
           
           <div className="flex flex-col sm:flex-row gap-2">
-            <Button onClick={handlePreviewBug} disabled={isDrafting || isCreating || !rawDescription.trim()} className="flex-1 sm:flex-initial">
+            <Button onClick={handlePreviewBug} disabled={isDrafting || isCreating || !actualBehaviour.trim() || !expectedBehaviour.trim()} className="flex-1 sm:flex-initial">
               {isDrafting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
               {isDrafting ? 'Drafting...' : 'Preview Bug with AI'}
             </Button>
@@ -317,7 +336,7 @@ export function RaiseBugModal({
             <Card className="mt-4 bg-muted/30 dark:bg-muted/10">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg">AI Drafted Bug Preview</CardTitle>
-                <CardDescription>Review the AI-generated details below. You can edit the description above and re-preview if needed.</CardDescription>
+                <CardDescription>Review the AI-generated details below. You can edit the descriptions above and re-preview if needed.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>

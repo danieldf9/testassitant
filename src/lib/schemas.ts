@@ -25,7 +25,8 @@ export type GenerateTestCasesOutput = z.infer<typeof GenerateTestCasesOutputSche
 
 // Schemas for Drafting Jira Bug Reports
 export const DraftJiraBugInputSchema = z.object({
-  rawDescription: z.string().describe('The raw text description of the bug provided by the user. May include URLs or pasted content.'),
+  actualBehaviour: z.string().describe("The user's description of what is actually happening."),
+  expectedBehaviour: z.string().describe("The user's description of what should be happening."),
   environmentHint: z.string().optional().describe('A hint for the environment (e.g., QA, PROD, Staging, Development). The AI should try to confirm or override this based on rawDescription.'),
   attachmentFilename: z.string().optional().describe('The filename of the attachment, if any.'),
   projectKey: z.string().describe('The key of the Jira project (e.g., PROJ).'),
@@ -34,7 +35,7 @@ export type DraftJiraBugInput = z.infer<typeof DraftJiraBugInputSchema>;
 
 export const DraftJiraBugOutputSchema = z.object({
   summary: z.string().describe('A concise, AI-generated summary/title for the bug report.'),
-  descriptionMarkdown: z.string().describe('A detailed, AI-generated description of the bug in Markdown format. This should include sections like "## Issue", "## Environment", "## Steps to Reproduce".'),
+  descriptionMarkdown: z.string().describe('A detailed, AI-generated description of the bug in Markdown format. This should include sections like "## Steps to Reproduce", "## Actual Result", "## Expected Result".'),
   identifiedEnvironment: z.string().describe('The environment identified or confirmed by the AI (e.g., QA, PROD, Staging, Development).'),
   attachmentName: z.string().optional().describe('The name of the attachment to be listed in the description (if provided in input).'),
 });
@@ -44,7 +45,8 @@ export type DraftJiraBugOutput = z.infer<typeof DraftJiraBugOutputSchema>;
 export const LocalStorageBugTemplateSchema = z.object({
   projectId: z.string(),
   summary: z.string(),
-  rawDescription: z.string(), // Store the user's original raw input
+  actualBehaviour: z.string(),
+  expectedBehaviour: z.string(),
   environment: z.string(),
 });
 export type LocalStorageBugTemplate = z.infer<typeof LocalStorageBugTemplateSchema>;
@@ -78,3 +80,43 @@ export const GeneratePlaywrightCodeOutputSchema = z.object({
     playwrightCode: z.string().describe("The generated Playwright test code as a single string."),
 });
 export type GeneratePlaywrightCodeOutput = z.infer<typeof GeneratePlaywrightCodeOutputSchema>;
+
+// Schemas for Document Analysis
+const DraftTicketRecursiveSchema: z.ZodType<DraftTicketRecursive> = z.lazy(() => z.object({
+  type: z.enum(["Epic", "Story", "Task", "Sub-task", "Bug"]),
+  summary: z.string(),
+  description: z.string(),
+  acceptanceCriteria: z.string().optional(),
+  suggestedId: z.string().optional(),
+  children: z.array(DraftTicketRecursiveSchema).optional(),
+}));
+
+export type DraftTicketRecursive = {
+  type: "Epic" | "Story" | "Task" | "Sub-task" | "Bug";
+  summary: string;
+  description: string;
+  acceptanceCriteria?: string;
+  suggestedId?: string;
+  children?: DraftTicketRecursive[];
+};
+
+
+export const AnalyzeDocumentInputSchema = z.object({
+  documentDataUri: z.string().describe("The PDF document content as a Base64-encoded data URI."),
+  projectKey: z.string(),
+  projectName: z.string(),
+  userPersona: z.string().optional().describe("An optional hint about the target user persona to guide ticket creation."),
+  outputFormatPreference: z.string().optional().describe("An optional hint about the desired output format (e.g., 'focus on user stories', 'create granular sub-tasks')."),
+});
+export type AnalyzeDocumentInput = z.infer<typeof AnalyzeDocumentInputSchema>;
+
+
+export const AnalyzeDocumentOutputSchema = z.array(DraftTicketRecursiveSchema).describe("A hierarchical array of drafted Jira tickets (Epics, Stories, Tasks, etc.).");
+export type AnalyzeDocumentOutput = z.infer<typeof AnalyzeDocumentOutputSchema>;
+
+export const CreateJiraTicketsInputSchema = z.object({
+    projectId: z.string(),
+    projectKey: z.string(),
+    tickets: AnalyzeDocumentOutputSchema,
+});
+export type CreateJiraTicketsInput = z.infer<typeof CreateJiraTicketsInputSchema>;
