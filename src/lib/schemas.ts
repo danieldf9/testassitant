@@ -14,6 +14,12 @@ export const TestCaseSchema = z.object({
   status: z.string().optional().describe('Status of the test case (e.g., Pass, Fail, Blocked; leave blank initially).'),
 });
 
+export const GenerateTestCasesInputSchema = z.object({
+  description: z.string().describe('The description of the Jira ticket.'),
+  acceptanceCriteria: z.string().optional().describe('The acceptance criteria of the Jira ticket.'),
+});
+export type GenerateTestCasesInput = z.infer<typeof GenerateTestCasesInputSchema>;
+
 export const GenerateTestCasesOutputSchema = z.array(TestCaseSchema).describe('An array of generated test cases.');
 export type GenerateTestCasesOutput = z.infer<typeof GenerateTestCasesOutputSchema>;
 
@@ -35,30 +41,6 @@ export type DraftTicketRecursive = z.infer<typeof BaseDraftTicketSchema> & {
 export const DraftTicketSchema: z.ZodType<DraftTicketRecursive> = BaseDraftTicketSchema.extend({
   children: z.lazy(() => DraftTicketSchema.array().optional()),
 });
-
-export const AnalyzeDocumentOutputSchema = z.array(DraftTicketSchema).describe('A hierarchical array of drafted Jira tickets (epics, stories, tasks, sub-tasks) based on the document analysis.');
-export type AnalyzeDocumentOutput = z.infer<typeof AnalyzeDocumentOutputSchema>;
-
-export const AnalyzeDocumentInputSchema = z.object({
-  documentDataUri: z
-    .string()
-    .describe(
-      "The content of the PDF document, as a data URI that must include a MIME type (application/pdf) and use Base64 encoding. Expected format: 'data:application/pdf;base64,<encoded_data>'."
-    ),
-  projectKey: z.string().describe('The key of the Jira project (e.g., PROJ) to provide context for ticket ID suggestions.'),
-  projectName: z.string().describe('The name of the Jira project to provide context to the AI.'),
-  userPersona: z.string().optional().describe('Optional: The primary user persona or role this document focuses on (e.g., "Project Manager", "Software Developer", "End User").'),
-  outputFormatPreference: z.string().optional().describe('Optional: User preference for the output structure, e.g., "Focus on user stories under epics", "Detailed tasks for each feature".'),
-});
-export type AnalyzeDocumentInput = z.infer<typeof AnalyzeDocumentInputSchema>;
-
-// Schema for creating tickets in Jira (will be used by createJiraTicketsAction)
-export const CreateJiraTicketsInputSchema = z.object({
-  projectId: z.string().describe("The Jira Project ID where tickets will be created."),
-  projectKey: z.string().describe("The Jira Project Key."),
-  tickets: AnalyzeDocumentOutputSchema,
-});
-export type CreateJiraTicketsInput = z.infer<typeof CreateJiraTicketsInputSchema>;
 
 
 // Schemas for Drafting Jira Bug Reports

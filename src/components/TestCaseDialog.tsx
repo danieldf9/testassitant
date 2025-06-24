@@ -13,7 +13,6 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-  DialogClose,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import {
@@ -87,21 +86,21 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
     setIsAttaching(true);
     setError(null);
     try {
-      // Pass the full generatedTestCases and projectId
       const result = await attachTestCasesToJiraAction(credentials, {
         issueKey: issue.key,
         testCases: generatedTestCases, 
         attachmentType,
-        projectId: issue.project.id, // Pass the project ID from the issue object
+        projectId: issue.project.id,
       });
 
       toast({
-        title: result.success ? 'Success' : 'Partial Success/Error',
+        title: result.success ? 'Success' : 'Error',
         description: result.message,
-        variant: result.success ? 'default' : 'destructive', // Adjust variant based on full success potentially
+        variant: result.success ? 'default' : 'destructive',
         className: result.success ? "bg-green-100 border-green-300 text-green-800 dark:bg-green-900 dark:border-green-700 dark:text-green-200" : "",
+        duration: 10000,
       });
-      if (result.success) { // Could refine this condition for partial successes
+      if (result.success) { 
         onClose(); 
       }
     } catch (err: any) {
@@ -162,7 +161,7 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
             </Alert>
           )}
           {!isLoading && !error && generatedTestCases.length > 0 && (
-            <ScrollArea className="h-full">
+            <ScrollArea className="h-full pr-4">
               <Table>
                 <TableHeader className="sticky top-0 bg-background shadow-sm">
                   <TableRow>
@@ -174,17 +173,17 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {generatedTestCases.map((tc) => (
-                    <TableRow key={tc.testCaseId}>
-                      <TableCell className="font-medium">{tc.testCaseId}</TableCell>
-                      <TableCell>{tc.testCaseName}</TableCell>
-                      <TableCell>{tc.precondition}</TableCell>
-                      <TableCell>
-                        <ul className="list-disc list-inside text-xs">
+                  {generatedTestCases.map((tc, index) => (
+                    <TableRow key={tc.testCaseId || index}>
+                      <TableCell className="font-medium align-top">{tc.testCaseId}</TableCell>
+                      <TableCell className="align-top">{tc.testCaseName}</TableCell>
+                      <TableCell className="align-top">{tc.precondition}</TableCell>
+                      <TableCell className="align-top">
+                        <ul className="list-decimal list-inside text-xs space-y-1">
                           {tc.testSteps.map((step, i) => <li key={i}>{step}</li>)}
                         </ul>
                       </TableCell>
-                      <TableCell>{tc.expectedResult}</TableCell>
+                      <TableCell className="align-top">{tc.expectedResult}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -230,7 +229,7 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
             </div>
           </DialogFooter>
         )}
-         {!isLoading && !error && generatedTestCases.length === 0 && (
+         {(!isLoading && (error || generatedTestCases.length === 0)) && (
             <DialogFooter className="p-6 border-t">
                  <Button variant="outline" onClick={handleDialogClose}>
                   Close

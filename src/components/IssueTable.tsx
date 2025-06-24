@@ -31,7 +31,7 @@ export function IssueTable({ projectId, onGenerateTestCases }: IssueTableProps) 
   const queryClient = useQueryClient();
   const [currentPage, setCurrentPage] = useState(1);
 
-  const { data: paginatedIssues, isLoading, error, isFetching, isPreviousData } = useQuery<PaginatedIssuesResponse, Error>({
+  const { data: paginatedIssues, isLoading, error, isFetching } = useQuery<PaginatedIssuesResponse, Error>({
     queryKey: ['jiraIssues', projectId, currentPage, credentials?.jiraUrl],
     queryFn: () => {
       if (!credentials) throw new Error('Not authenticated');
@@ -39,10 +39,9 @@ export function IssueTable({ projectId, onGenerateTestCases }: IssueTableProps) 
       return fetchIssuesAction(credentials, { projectId, page: currentPage, pageSize: PAGE_SIZE });
     },
     enabled: !!credentials && !!projectId,
-    keepPreviousData: true, // Important for pagination UX
+    keepPreviousData: true,
   });
   
-  // Prefetch next page
   useEffect(() => {
     if (credentials && projectId && paginatedIssues && currentPage < paginatedIssues.totalPages) {
       queryClient.prefetchQuery({
@@ -52,22 +51,24 @@ export function IssueTable({ projectId, onGenerateTestCases }: IssueTableProps) 
     }
   }, [paginatedIssues, currentPage, projectId, credentials, queryClient]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [projectId]);
+
 
   const getStatusBadgeVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
     const lowerStatus = status.toLowerCase();
-    if (lowerStatus.includes('done') || lowerStatus.includes('resolved') || lowerStatus.includes('closed')) return 'default'; // Default is usually primary, looks good for "Done"
+    if (lowerStatus.includes('done') || lowerStatus.includes('resolved') || lowerStatus.includes('closed')) return 'default';
     if (lowerStatus.includes('progress') || lowerStatus.includes('review')) return 'secondary';
     if (lowerStatus.includes('to do') || lowerStatus.includes('open') || lowerStatus.includes('backlog')) return 'outline';
     return 'outline';
   };
   
   const getIssueTypeIcon = (issueType: string) => {
-    // Placeholder for more specific icons
     return <FileText className="h-4 w-4 mr-2 text-muted-foreground" />;
   };
 
-
-  if (isLoading && !paginatedIssues) { // Initial load
+  if (isLoading && !paginatedIssues) {
     return (
       <div className="space-y-4 mt-6">
         {[...Array(PAGE_SIZE)].map((_, i) => (
@@ -100,7 +101,7 @@ export function IssueTable({ projectId, onGenerateTestCases }: IssueTableProps) 
       <Alert className="mt-6">
          <AlertCircle className="h-4 w-4" />
         <AlertTitle>No Issues Found</AlertTitle>
-        <AlertDescription>No issues found for the selected project, or an error occurred.</AlertDescription>
+        <AlertDescription>No issues found for the selected project. You can still raise a new bug.</AlertDescription>
       </Alert>
     );
   }
@@ -110,43 +111,45 @@ export function IssueTable({ projectId, onGenerateTestCases }: IssueTableProps) 
   return (
     <div className="mt-6">
       <div className={`transition-opacity duration-300 ${isFetching ? 'opacity-50' : 'opacity-100'}`}>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Key</TableHead>
-              <TableHead>Summary</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {issues.map((issue) => (
-              <TableRow key={issue.id}>
-                <TableCell className="font-medium">{issue.key}</TableCell>
-                <TableCell>{issue.summary}</TableCell>
-                <TableCell className="flex items-center">
-                  {getIssueTypeIcon(issue.issueType)}
-                  {issue.issueType}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={getStatusBadgeVariant(issue.status)}>{issue.status}</Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onGenerateTestCases(issue)}
-                    className="shadow-sm hover:shadow-md transition-shadow"
-                  >
-                    <Wand2 className="mr-2 h-4 w-4" />
-                    Generate Tests
-                  </Button>
-                </TableCell>
+        <div className="border rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[100px]">Key</TableHead>
+                <TableHead>Summary</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right w-[180px]">Actions</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {issues.map((issue) => (
+                <TableRow key={issue.id}>
+                  <TableCell className="font-medium">{issue.key}</TableCell>
+                  <TableCell>{issue.summary}</TableCell>
+                  <TableCell className="flex items-center">
+                    {getIssueTypeIcon(issue.issueType)}
+                    {issue.issueType}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={getStatusBadgeVariant(issue.status)}>{issue.status}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onGenerateTestCases(issue)}
+                      className="shadow-sm hover:shadow-md transition-shadow"
+                    >
+                      <Wand2 className="mr-2 h-4 w-4" />
+                      Generate Tests
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       {totalPages > 1 && (
@@ -157,33 +160,37 @@ export function IssueTable({ projectId, onGenerateTestCases }: IssueTableProps) 
           <div className="flex items-center space-x-2">
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setCurrentPage(1)}
               disabled={currentPage === 1 || isFetching}
+              className="h-8 w-8"
             >
               <ChevronsLeft className="h-4 w-4" />
             </Button>
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
               disabled={currentPage === 1 || isFetching}
+              className="h-8 w-8"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
               disabled={currentPage === totalPages || isFetching}
+              className="h-8 w-8"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
              <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setCurrentPage(totalPages)}
               disabled={currentPage === totalPages || isFetching}
+              className="h-8 w-8"
             >
               <ChevronsRight className="h-4 w-4" />
             </Button>
