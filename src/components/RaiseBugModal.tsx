@@ -323,10 +323,10 @@ export function RaiseBugModal({
                   <p className="text-sm p-2 border rounded-md bg-background">{draftedBug.summary}</p>
                 </div>
                 <div>
-                  <Label className="text-xs font-semibold">Generated Description (Markdown):</Label>
-                  <div className="prose prose-sm dark:prose-invert max-w-none p-2 border rounded-md bg-background overflow-x-auto">
-                    <ReactMarkdown>{draftedBug.descriptionMarkdown}</ReactMarkdown>
-                  </div>
+                  <Label className="text-xs font-semibold">Generated Description:</Label>
+                  <pre className="text-sm p-2 border rounded-md bg-background overflow-x-auto whitespace-pre-wrap font-sans">
+                    {draftedBug.descriptionMarkdown}
+                  </pre>
                 </div>
                  <p className="text-xs text-muted-foreground">Identified Environment by AI: {draftedBug.identifiedEnvironment}</p>
                  {draftedBug.attachmentName && <p className="text-xs text-muted-foreground">Attachment in draft: {draftedBug.attachmentName}</p>}
