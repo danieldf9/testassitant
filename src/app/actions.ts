@@ -460,11 +460,11 @@ export async function createJiraBugInJiraAction(
     }
 
     const createdIssue = await createIssueResponse.json();
-    const issueKey = createdIssue.key;
-    const ticketUrl = `${jiraUrl}/browse/${issueKey}`;
+    const ticketKey = createdIssue.key;
+    const ticketUrl = `${jiraUrl}/browse/${ticketKey}`;
 
     // 2. Attach file if provided
-    if (attachmentDataUri && attachmentFileName && issueKey) {
+    if (attachmentDataUri && attachmentFileName && ticketKey) {
       try {
         const base64Data = attachmentDataUri.split(',')[1];
         const byteCharacters = atob(base64Data);
@@ -478,7 +478,7 @@ export async function createJiraBugInJiraAction(
         const formData = new FormData();
         formData.append('file', blob, attachmentFileName);
 
-        const attachResponse = await fetch(`${jiraUrl}/rest/api/3/issue/${issueKey}/attachments`, {
+        const attachResponse = await fetch(`${jiraUrl}/rest/api/3/issue/${ticketKey}/attachments`, {
           method: 'POST',
           headers: {
             'Authorization': authHeader,
@@ -490,11 +490,11 @@ export async function createJiraBugInJiraAction(
 
         if (!attachResponse.ok) {
           const attachErrorText = await attachResponse.text();
-          console.error(`Jira API Error (attach file to ${issueKey}): Status ${attachResponse.status}`, attachErrorText);
+          console.error(`Jira API Error (attach file to ${ticketKey}): Status ${attachResponse.status}`, attachErrorText);
           // Don't fail the whole operation, just warn about attachment failure
           return {
             success: true, // Issue created, attachment failed
-            message: `Bug ${issueKey} created, but failed to attach ${attachmentFileName}. Status: ${attachResponse.status}. ${attachErrorText.substring(0,100).replace(/<[^>]+>/g, '').trim()}`,
+            message: `Bug ${ticketKey} created, but failed to attach ${attachmentFileName}. Status: ${attachResponse.status}. ${attachErrorText.substring(0,100).replace(/<[^>]+>/g, '').trim()}`,
             ticketKey,
             ticketUrl,
           };
@@ -502,16 +502,16 @@ export async function createJiraBugInJiraAction(
         await attachResponse.json(); // Consume response
          return {
             success: true,
-            message: `Bug ${issueKey} created successfully with attachment ${attachmentFileName}.`,
+            message: `Bug ${ticketKey} created successfully with attachment ${attachmentFileName}.`,
             ticketKey,
             ticketUrl
         };
 
       } catch (attachError: any) {
-         console.error(`Error processing or attaching file to ${issueKey}:`, attachError);
+         console.error(`Error processing or attaching file to ${ticketKey}:`, attachError);
          return {
             success: true, // Issue created, attachment processing failed
-            message: `Bug ${issueKey} created, but failed to process or attach file: ${attachError.message}`,
+            message: `Bug ${ticketKey} created, but failed to process or attach file: ${attachError.message}`,
             ticketKey,
             ticketUrl,
          }
@@ -520,7 +520,7 @@ export async function createJiraBugInJiraAction(
 
     return {
         success: true,
-        message: `Bug ${issueKey} created successfully.`,
+        message: `Bug ${ticketKey} created successfully.`,
         ticketKey,
         ticketUrl
     };
