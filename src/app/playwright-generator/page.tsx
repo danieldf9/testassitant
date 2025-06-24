@@ -8,15 +8,15 @@ import { PlaywrightSetupSchema, type PlaywrightSetup, type GenerateTestCasesOutp
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { ProjectSelector } from '@/components/ProjectSelector';
-import { IssueTable } from '@/components/IssueTable';
+import { IssueTable } from '@/components/ui/IssueTable';
 import { generateTestCasesAction, generatePlaywrightCodeAction, type JiraIssue } from '@/app/actions';
-import { Bot, Info, Loader2, AlertCircle, Wand2, Clipboard, Check, Table as TableIcon } from 'lucide-react';
+import { Bot, Info, Loader2, AlertCircle, Wand2, Clipboard, Check, Table as TableIcon, Code } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import Link from 'next/link';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function PlaywrightGeneratorPage() {
   const { isAuthenticated, credentials } = useAuth();
@@ -179,44 +179,79 @@ export default function PlaywrightGeneratorPage() {
                 <h2 className="text-2xl font-semibold text-foreground mb-4">
                     Generated Artifacts for {selectedIssue?.key}: <span className="text-muted-foreground font-normal">{selectedIssue?.summary}</span>
                 </h2>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[70vh]">
-                    <Card className="flex flex-col h-full">
-                        <CardHeader className="flex-shrink-0">
-                            <CardTitle className="flex items-center"><TableIcon className="mr-2 h-5 w-5" /> Test Cases</CardTitle>
-                        </CardHeader>
-                        <CardContent className="flex-grow overflow-hidden">
-                           <ScrollArea className="h-full pr-4">
-                            <Table>
-                              <TableHeader className="sticky top-0 bg-card"><TableRow><TableHead>ID</TableHead><TableHead>Name</TableHead><TableHead>Steps</TableHead></TableRow></TableHeader>
-                              <TableBody>
-                                {generatedTestCases?.map((tc, index) => (
-                                  <TableRow key={tc.testCaseId || index}><TableCell className="font-medium align-top text-xs">{tc.testCaseId}</TableCell><TableCell className="align-top text-xs">{tc.testCaseName}</TableCell><TableCell className="align-top"><ul className="list-decimal list-inside text-xs space-y-1">{tc.testSteps.map((step, i) => <li key={i}>{step}</li>)}</ul></TableCell></TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                           </ScrollArea>
-                        </CardContent>
-                    </Card>
-                     <Card className="flex flex-col h-full">
-                        <CardHeader className="flex-shrink-0">
-                            <CardTitle className="flex items-center"><Bot className="mr-2 h-5 w-5" /> Playwright Code</CardTitle>
-                        </CardHeader>
-                        <CardContent className="flex-grow overflow-hidden relative">
-                             <ScrollArea className="h-full bg-gray-900 rounded-md">
-                                <SyntaxHighlighter language="typescript" style={vscDarkPlus} customStyle={{ margin: 0, padding: '1rem', height: '100%' }}>
-                                  {generatedCode || "// Code will appear here..."}
+                <Tabs defaultValue="test-cases" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="test-cases"><TableIcon className="mr-2 h-4 w-4" /> Generated Test Cases</TabsTrigger>
+                        <TabsTrigger value="playwright-code"><Code className="mr-2 h-4 w-4" /> Generated Code</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="test-cases">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Test Cases</CardTitle>
+                                <CardDescription>
+                                    Review the AI-generated test cases below. These were used as the basis for the Playwright code.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="max-h-[60vh] overflow-y-auto relative border rounded-lg">
+                                <Table>
+                                    <TableHeader className="sticky top-0 bg-card shadow-sm">
+                                        <TableRow>
+                                        <TableHead className="w-[120px]">ID</TableHead>
+                                        <TableHead>Name</TableHead>
+                                        <TableHead>Precondition</TableHead>
+                                        <TableHead>Steps</TableHead>
+                                        <TableHead>Expected Result</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {generatedTestCases?.map((tc, index) => (
+                                        <TableRow key={tc.testCaseId || index}>
+                                            <TableCell className="font-medium align-top text-xs">{tc.testCaseId}</TableCell>
+                                            <TableCell className="align-top text-sm">{tc.testCaseName}</TableCell>
+                                            <TableCell className="align-top text-sm">{tc.precondition}</TableCell>
+                                            <TableCell className="align-top">
+                                                <ul className="list-decimal list-inside text-sm space-y-1">
+                                                    {tc.testSteps.map((step, i) => <li key={i}>{step}</li>)}
+                                                </ul>
+                                            </TableCell>
+                                            <TableCell className="align-top text-sm">{tc.expectedResult}</TableCell>
+                                        </TableRow>
+                                        ))}
+                                    </TableBody>
+                                    </Table>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                    <TabsContent value="playwright-code">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Playwright Code</CardTitle>
+                                <CardDescription>
+                                    This code was generated using the Page Object Model (POM) pattern.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="relative">
+                                <div className="max-h-[60vh] overflow-y-auto rounded-md bg-gray-900">
+                                <SyntaxHighlighter language="typescript" style={vscDarkPlus} customStyle={{ margin: 0, padding: '1rem', background: 'transparent' }} wrapLongLines={true}>
+                                    {generatedCode || "// Code will appear here..."}
                                 </SyntaxHighlighter>
-                            </ScrollArea>
-                            {generatedCode && (
-                                <Button variant="ghost" size="icon" className="absolute top-2 right-14 h-7 w-7 text-gray-300 hover:text-white hover:bg-white/20" onClick={copyToClipboard}>
-                                    {hasCopied ? <Check className="h-4 w-4 text-green-400" /> : <Clipboard className="h-4 w-4" />}
-                                </Button>
-                            )}
-                        </CardContent>
-                    </Card>
-                </div>
+                                </div>
+                                {generatedCode && (
+                                    <Button variant="ghost" size="icon" className="absolute top-4 right-4 h-8 w-8 text-gray-300 hover:text-white hover:bg-white/20" onClick={copyToClipboard}>
+                                        {hasCopied ? <Check className="h-4 w-4 text-green-400" /> : <Clipboard className="h-4 w-4" />}
+                                        <span className="sr-only">Copy code</span>
+                                    </Button>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                </Tabs>
             </div>
         )}
     </div>
   );
 }
+
+    
