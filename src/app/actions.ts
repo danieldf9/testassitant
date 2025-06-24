@@ -9,7 +9,6 @@ import * as ExcelJS from 'exceljs';
 import {
   type GenerateTestCasesOutput,
   GenerateTestCasesOutputSchema,
-  type DraftTicketRecursive,
   type DraftJiraBugInput,
   DraftJiraBugOutputSchema,
   type DraftJiraBugOutput,
@@ -33,7 +32,7 @@ export interface JiraIssue {
   issueType: string;
   status: string;
   description?: string;
-  acceptanceCriteria?: string; // This is from a custom field when fetching
+  acceptanceCriteria?: string; // This from a custom field when fetching
   project: {
     id: string;
     key: string;
@@ -494,7 +493,6 @@ export async function generateTestCasesAction(input: GenerateTestCasesInput): Pr
 const AttachTestCasesInputSchema = z.object({
   issueKey: z.string(),
   testCases: GenerateTestCasesOutputSchema,
-  attachmentType: z.enum(['excel', 'subtask']),
   projectId: z.string(), 
 });
 
@@ -560,83 +558,28 @@ export async function attachTestCasesToJiraAction(
   const validatedCredentials = CredentialsSchema.parse(credentials);
   const validatedParams = AttachTestCasesInputSchema.parse(params);
   const { jiraUrl, email, apiToken } = validatedCredentials;
-  const { issueKey, testCases, attachmentType, projectId } = validatedParams;
+  const { issueKey, testCases } = validatedParams;
   const authHeader = `Basic ${Buffer.from(`${email}:${apiToken}`).toString('base64')}`;
 
-  if (attachmentType === 'excel') {
-    const excelBuffer = await convertTestCasesToExcel(testCases);
-    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const formData = new FormData();
-    formData.append('file', blob, `test-cases-${issueKey}.xlsx`);
-    
-    const response = await fetch(`${jiraUrl}/rest/api/3/issue/${issueKey}/attachments`, {
-      method: 'POST',
-      headers: {
-        'Authorization': authHeader,
-        'X-Atlassian-Token': 'no-check',
-      },
-      body: formData,
-    });
+  const excelBuffer = await convertTestCasesToExcel(testCases);
+  const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const formData = new FormData();
+  formData.append('file', blob, `test-cases-${issueKey}.xlsx`);
+  
+  const response = await fetch(`${jiraUrl}/rest/api/3/issue/${issueKey}/attachments`, {
+    method: 'POST',
+    headers: {
+      'Authorization': authHeader,
+      'X-Atlassian-Token': 'no-check',
+    },
+    body: formData,
+  });
 
-    if (response.ok) {
-      return { success: true, message: `Successfully attached test cases as Excel file to ${issueKey}.` };
-    } else {
-      const errorText = await response.text();
-      console.error('Jira API Error (attach Excel):', response.status, errorText);
-      throw new Error(`Failed to attach Excel file to ${issueKey}. Status: ${response.status}`);
-    }
-
-  } else if (attachmentType === 'subtask') {
-    let successCount = 0;
-    const errors: string[] = [];
-
-    for (const testCase of testCases) {
-      const subtaskDescription = `
-*Precondition:*
-${testCase.precondition}
-
-*Test Steps:*
-${testCase.testSteps.map(step => `- ${step}`).join('\n')}
-
-*Expected Result:*
-${testCase.expectedResult}
-      `;
-
-      const payload = {
-        fields: {
-          project: { id: projectId },
-          parent: { key: issueKey },
-          summary: testCase.testCaseName,
-          description: textToAdf(subtaskDescription),
-          issuetype: { name: 'Sub-task' },
-        },
-      };
-
-      const response = await fetch(`${jiraUrl}/rest/api/3/issue`, {
-        method: 'POST',
-        headers: {
-          'Authorization': authHeader,
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.ok) {
-        successCount++;
-      } else {
-        const errorText = await response.text();
-        console.error(`Jira API Error (create sub-task for ${issueKey}):`, response.status, errorText);
-        errors.push(`${testCase.testCaseId}: Status ${response.status}`);
-      }
-    }
-    
-    if (errors.length === 0) {
-      return { success: true, message: `Successfully created ${successCount} test case sub-tasks for ${issueKey}.` };
-    } else {
-      throw new Error(`Completed with ${errors.length} errors. ${successCount} sub-tasks created. Errors: ${errors.join(', ')}`);
-    }
+  if (response.ok) {
+    return { success: true, message: `Successfully attached test cases as Excel file to ${issueKey}.` };
+  } else {
+    const errorText = await response.text();
+    console.error('Jira API Error (attach Excel):', response.status, errorText);
+    throw new Error(`Failed to attach Excel file to ${issueKey}. Status: ${response.status}`);
   }
-
-  return { success: false, message: 'Invalid attachment type specified.' };
 }
