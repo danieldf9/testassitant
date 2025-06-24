@@ -28,7 +28,7 @@ import { Loader2, AlertCircle, Wand2, CheckCircle, FileUp, ListRestart, Save } f
 import ReactMarkdown from 'react-markdown';
 import { draftJiraBugAction, createJiraBugInJiraAction } from '@/app/actions';
 import type { DraftJiraBugOutput, LocalStorageBugTemplate } from '@/lib/schemas';
-import type { JiraCredentials } from '@/legacy/contexts/AuthContext';
+import type { JiraCredentials } from '@/contexts/AuthContext';
 
 interface RaiseBugModalProps {
   isOpen: boolean;
@@ -341,7 +341,7 @@ export function RaiseBugModal({
           <DialogClose asChild>
             <Button variant="outline" disabled={isCreating || isDrafting}>Cancel</Button>
           </DialogClose>
-          <Button onClick={handleCreateJiraBug} disabled={!draftedBug || isCreating || isDrafting}>
+          <Button onClick={handleCreateJiraBug} disabled={!draftedBug || isCreating || isCreating}>
             {isCreating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
             {isCreating ? 'Creating in Jira...' : 'Confirm & Create Bug'}
           </Button>
@@ -350,5 +350,3 @@ export function RaiseBugModal({
     </Dialog>
   );
 }
-
-    

@@ -2,20 +2,15 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/legacy/contexts/AuthContext';
-import { AuthForm } from '@/legacy/components/AuthForm';
-import { ProjectSelector } from '@/legacy/components/ProjectSelector';
-import { IssueTable } from '@/legacy/components/IssueTable';
-import { TestCaseDialog } from '@/legacy/components/TestCaseDialog';
-import { DocumentTicketCreator } from '@/legacy/components/DocumentTicketCreator'; 
+import { useAuth } from '@/contexts/AuthContext';
+import { AuthForm } from '@/components/AuthForm';
+import { ProjectSelector } from '@/components/ProjectSelector';
 import { RaiseBugModal } from '@/components/RaiseBugModal';
 import type { JiraIssue } from '@/app/actions';
 import { Button } from '@/components/ui/button';
-import { LogOut, Info, FileText, ListChecks, ArrowLeft, Bug, Eye } from 'lucide-react'; 
+import { LogOut, Info, Bug, Eye, ListChecks, FileText } from 'lucide-react'; 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
-
-type AppMode = 'viewIssues' | 'createFromDocument' | 'raiseBug' | null;
 
 export default function JiraCaseGenPage() {
   const { isAuthenticated, credentials, logout } = useAuth();
@@ -23,12 +18,9 @@ export default function JiraCaseGenPage() {
   const [selectedProjectKey, setSelectedProjectKey] = useState<string | undefined>(undefined);
   const [selectedProjectName, setSelectedProjectName] = useState<string | undefined>(undefined);
   
-  const [selectedIssueForTestCases, setSelectedIssueForTestCases] = useState<JiraIssue | null>(null);
-  const [isTestCaseDialogOpen, setIsTestCaseDialogOpen] = useState(false);
   const [isRaiseBugModalOpen, setIsRaiseBugModalOpen] = useState(false);
 
   const [isClient, setIsClient] = useState(false);
-  const [currentAppMode, setCurrentAppMode] = useState<AppMode>(null); // For main content area
 
   useEffect(() => {
     setIsClient(true);
@@ -38,28 +30,12 @@ export default function JiraCaseGenPage() {
     setSelectedProjectId(projectId);
     setSelectedProjectKey(projectKey);
     setSelectedProjectName(projectName);
-    setCurrentAppMode(null); // Reset mode when project changes
-    setIsRaiseBugModalOpen(false); // Close bug modal if open
+    setIsRaiseBugModalOpen(false);
   };
-
-  const handleGenerateTestCases = (issue: JiraIssue) => {
-    setSelectedIssueForTestCases(issue);
-    setIsTestCaseDialogOpen(true);
-  };
-
-  const handleCloseTestCaseDialog = () => {
-    setIsTestCaseDialogOpen(false);
-    setSelectedIssueForTestCases(null);
-  };
-
-  const handleBackToModeSelection = () => {
-    setCurrentAppMode(null);
-  };
-
+  
   const openRaiseBugModal = () => {
     if (selectedProjectId && selectedProjectKey && selectedProjectName) {
       setIsRaiseBugModalOpen(true);
-      setCurrentAppMode('raiseBug'); // Also set app mode, though modal might overlay
     }
   };
 
@@ -71,17 +47,6 @@ export default function JiraCaseGenPage() {
     return <AuthForm />;
   }
 
-  const getModeTitle = () => {
-    if (currentAppMode === 'viewIssues' && selectedProjectName) {
-      return `Viewing Issues for ${selectedProjectName}`;
-    }
-    if (currentAppMode === 'createFromDocument' && selectedProjectName) {
-      return `Creating Tickets from Document for ${selectedProjectName}`;
-    }
-    // No title needed if raiseBug modal is open, or handled by modal itself
-    return selectedProjectName ? `Project: ${selectedProjectName}` : 'JiraCaseGen';
-  };
-
   return (
     <div className="container mx-auto p-4 md:p-8">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
@@ -89,8 +54,7 @@ export default function JiraCaseGenPage() {
           {credentials && (
             <ProjectSelector 
               selectedProjectId={selectedProjectId} 
-              onProjectSelect={handleProjectSelect} 
-              disabled={!!currentAppMode && currentAppMode !== 'raiseBug'} // Allow project change even if bug modal is conceptionalized
+              onProjectSelect={handleProjectSelect}
             />
           )}
         </div>
@@ -107,7 +71,7 @@ export default function JiraCaseGenPage() {
               Select a Project
             </CardTitle>
             <CardDescription>
-              Please choose a project from the dropdown above to proceed.
+              Please choose a project from the dropdown above to get started.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -121,7 +85,7 @@ export default function JiraCaseGenPage() {
             </div>
           </CardContent>
         </Card>
-      ) : !currentAppMode ? (
+      ) : (
         <div className="mt-8">
             <h2 className="text-xl font-semibold text-foreground mb-4">
                 {selectedProjectName ? `Actions for ${selectedProjectName} (${selectedProjectKey})` : 'Select an Action'}
@@ -129,17 +93,17 @@ export default function JiraCaseGenPage() {
             <div className="grid gap-4 md:grid-cols-3">
             <Button
                 variant="outline"
-                className="p-6 h-auto flex-col items-start text-left hover:shadow-lg transition-shadow border-primary/30 hover:border-primary/60"
-                onClick={() => setCurrentAppMode('viewIssues')}
+                className="p-6 h-auto flex-col items-start text-left hover:shadow-lg transition-shadow border-gray-300 dark:border-gray-700"
+                onClick={() => { alert("Dashboard feature coming soon!"); }}
             >
-                <ListChecks className="mr-3 h-7 w-7 text-primary mb-2" />
-                <span className="font-semibold text-lg">View Issues & Tests</span>
-                <p className="text-sm text-muted-foreground mt-1">Browse project issues and generate AI test cases.</p>
+                <ListChecks className="mr-3 h-7 w-7 text-gray-500 mb-2" />
+                <span className="font-semibold text-lg">Dashboard</span>
+                <p className="text-sm text-muted-foreground mt-1">View project issues and status (coming soon).</p>
             </Button>
             <Button
                 variant="outline"
                 className="p-6 h-auto flex-col items-start text-left hover:shadow-lg transition-shadow border-gray-300 dark:border-gray-700"
-                onClick={() => { /* Placeholder for Watchlist */ alert("Watchlist feature coming soon!"); }}
+                onClick={() => { alert("Watchlist feature coming soon!"); }}
             >
                 <Eye className="mr-3 h-7 w-7 text-gray-500 mb-2" />
                 <span className="font-semibold text-lg">Watchlist</span>
@@ -154,53 +118,14 @@ export default function JiraCaseGenPage() {
                 <span className="font-semibold text-lg">Raise Bug to JIRA</span>
                 <p className="text-sm text-muted-foreground mt-1">Report a new bug with AI assistance.</p>
             </Button>
-            <Button
-                variant="outline"
-                className="p-6 h-auto flex-col items-start text-left hover:shadow-lg transition-shadow border-accent/30 hover:border-accent/60 md:col-span-1" // Span 1 on md, will wrap or be separate line
-                onClick={() => setCurrentAppMode('createFromDocument')}
-            >
-                <FileText className="mr-3 h-7 w-7 text-accent mb-2" />
-                <span className="font-semibold text-lg">Create from Document</span>
-                <p className="text-sm text-muted-foreground mt-1">Draft tickets from a PDF document.</p>
-            </Button>
             </div>
         </div>
-      ) : (
-        <div className="mt-6">
-          {currentAppMode !== 'raiseBug' && ( // Don't show back button if bug modal is the "mode"
-            <div className="flex items-center mb-6">
-                <Button variant="outline" size="sm" onClick={handleBackToModeSelection} className="mr-4">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Actions
-                </Button>
-                <h2 className="text-xl font-semibold text-foreground">{getModeTitle()}</h2>
-            </div>
-          )}
-
-          {currentAppMode === 'viewIssues' ? (
-            <IssueTable projectId={selectedProjectId} onGenerateTestCases={handleGenerateTestCases} />
-          ) : currentAppMode === 'createFromDocument' && selectedProjectId && selectedProjectKey && selectedProjectName ? (
-            <DocumentTicketCreator projectId={selectedProjectId} projectKey={selectedProjectKey} projectName={selectedProjectName} />
-          ) : null}
-        </div>
-      )}
-
-      {selectedIssueForTestCases && (
-        <TestCaseDialog
-          issue={selectedIssueForTestCases}
-          isOpen={isTestCaseDialogOpen}
-          onClose={handleCloseTestCaseDialog}
-        />
       )}
       
       {isRaiseBugModalOpen && selectedProjectId && selectedProjectKey && selectedProjectName && credentials && (
         <RaiseBugModal
           isOpen={isRaiseBugModalOpen}
-          onClose={() => {
-            setIsRaiseBugModalOpen(false);
-            // If closing bug modal returns to action selection
-            if (currentAppMode === 'raiseBug') setCurrentAppMode(null); 
-          }}
+          onClose={() => setIsRaiseBugModalOpen(false)}
           projectId={selectedProjectId}
           projectKey={selectedProjectKey}
           projectName={selectedProjectName}
