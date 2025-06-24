@@ -2,11 +2,10 @@
 "use client";
 
 import type { JiraIssue } from '@/app/actions';
-import { generateTestCasesAction, attachTestCasesToJiraAction, generatePlaywrightCodeAction } from '@/app/actions';
+import { generateTestCasesAction, attachTestCasesToJiraAction } from '@/app/actions';
 import type { GenerateTestCasesOutput } from '@/ai/flows/generate-test-cases';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { PlaywrightSetup, PlaywrightSetupSchema } from '@/lib/schemas';
 import {
   Dialog,
   DialogContent,
@@ -26,11 +25,8 @@ import {
 } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, AlertCircle, Wand2, FileSpreadsheet, Code, Clipboard, Check } from 'lucide-react';
+import { Loader2, AlertCircle, Wand2, FileSpreadsheet } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/cjs/styles/prism';
-import Link from 'next/link';
 
 interface TestCaseDialogProps {
   issue: JiraIssue | null;
@@ -46,35 +42,12 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
   const [error, setError] = useState<string | null>(null);
   const [isAttaching, setIsAttaching] = useState(false);
 
-  // State for playwright code generation
-  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
-  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
-  const [codeError, setCodeError] = useState<string | null>(null);
-  const [playwrightSetup, setPlaywrightSetup] = useState<PlaywrightSetup | null>(null);
-  const [hasCopied, setHasCopied] = useState(false);
-
   useEffect(() => {
     if (isOpen && issue) {
       // Reset state on open
       setGeneratedTestCases([]);
-      setGeneratedCode(null);
       setError(null);
-      setCodeError(null);
-      setHasCopied(false);
       setIsLoading(true);
-
-      // Check for playwright setup in localstorage
-      try {
-        const savedSetup = localStorage.getItem(`playwrightSetup_${issue.project.id}`);
-        if (savedSetup) {
-          setPlaywrightSetup(PlaywrightSetupSchema.parse(JSON.parse(savedSetup)));
-        } else {
-          setPlaywrightSetup(null);
-        }
-      } catch {
-        setPlaywrightSetup(null);
-      }
-
 
       generateTestCasesAction({
         description: issue.description || '',
@@ -109,10 +82,6 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
     setError(null);
     setIsLoading(false);
     setIsAttaching(false);
-    setGeneratedCode(null);
-    setCodeError(null);
-    setIsGeneratingCode(false);
-    setHasCopied(false);
     onClose();
   }, [onClose]);
 
@@ -151,56 +120,19 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
     }
   };
 
-  const handleGenerateCode = async () => {
-    if (!playwrightSetup || !issue) return;
-
-    setIsGeneratingCode(true);
-    setGeneratedCode(null);
-    setCodeError(null);
-
-    try {
-      const result = await generatePlaywrightCodeAction({
-        testCases: generatedTestCases,
-        playwrightSetup,
-        projectName: issue.project.name,
-      });
-      setGeneratedCode(result.playwrightCode);
-    } catch (err: any) {
-      console.error(err);
-      const errorMessage = err.message || 'An unexpected error occurred while generating code.';
-      setCodeError(errorMessage);
-      toast({
-        title: 'Error Generating Code',
-        description: errorMessage,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsGeneratingCode(false);
-    }
-  };
-
-  const copyToClipboard = () => {
-    if (generatedCode) {
-      navigator.clipboard.writeText(generatedCode);
-      setHasCopied(true);
-      setTimeout(() => setHasCopied(false), 2000);
-    }
-  };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleDialogClose()}>
-      <DialogContent className="max-w-6xl h-[90vh] flex flex-col p-0">
+      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-4 border-b">
           <DialogTitle className="text-2xl">Generated Test Cases for {issue?.key}</DialogTitle>
           <DialogDescription>
-            Review AI-generated test cases for &quot;{issue?.summary}&quot;. Attach them to Jira or generate Playwright code.
+            Review AI-generated test cases for &quot;{issue?.summary}&quot;. Attach them to Jira as a formatted Excel file.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-grow overflow-hidden px-6 py-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Test Cases Column */}
+        <div className="flex-grow overflow-hidden px-6 py-4">
           <div className="flex flex-col h-full overflow-hidden">
-            <h3 className="text-lg font-semibold mb-2">Test Cases</h3>
             {isLoading && (
               <div className="flex flex-col items-center justify-center h-full">
                 <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
@@ -225,42 +157,6 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
                 </Table>
               </ScrollArea>
             )}
-          </div>
-
-          {/* Playwright Code Column */}
-          <div className="flex flex-col h-full overflow-hidden">
-             <h3 className="text-lg font-semibold mb-2">Playwright Code</h3>
-             {!playwrightSetup ? (
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Playwright Setup Required</AlertTitle>
-                  <AlertDescription>
-                    To generate test code, you must first configure the Playwright settings for this project.
-                    <Button variant="link" asChild className="p-0 h-auto ml-1">
-                      <Link href="/playwright-setup">Go to Setup</Link>
-                    </Button>
-                  </AlertDescription>
-                </Alert>
-             ) : isGeneratingCode ? (
-                <div className="flex flex-col items-center justify-center h-full"><Loader2 className="h-16 w-16 animate-spin text-primary mb-4" /><p className="text-lg text-muted-foreground">AI is writing Playwright code...</p></div>
-             ) : codeError ? (
-                <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>Code Generation Error</AlertTitle><AlertDescription>{codeError}</AlertDescription></Alert>
-             ) : generatedCode ? (
-               <div className="relative h-full">
-                <ScrollArea className="h-full pr-4 border rounded-md bg-gray-900">
-                    <SyntaxHighlighter language="typescript" style={vscDarkPlus} customStyle={{ margin: 0, padding: '1rem', height: '100%' }}>
-                      {generatedCode}
-                    </SyntaxHighlighter>
-                </ScrollArea>
-                 <Button variant="ghost" size="icon" className="absolute top-2 right-6 h-7 w-7 text-gray-300 hover:text-white hover:bg-white/20" onClick={copyToClipboard}>
-                    {hasCopied ? <Check className="h-4 w-4 text-green-400" /> : <Clipboard className="h-4 w-4" />}
-                 </Button>
-               </div>
-             ) : (
-                <div className="flex items-center justify-center h-full border-2 border-dashed rounded-md">
-                   <Button onClick={handleGenerateCode} disabled={isGeneratingCode || generatedTestCases.length === 0}><Code className="mr-2 h-4 w-4"/>Generate Playwright Code</Button>
-                </div>
-             )}
           </div>
         </div>
 

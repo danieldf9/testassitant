@@ -15,18 +15,20 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, FileText, Wand2 } from 'lucide-react';
+import { AlertCircle, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, FileText, Wand2, Bot } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import React, { useState, useEffect } from 'react';
 
 interface IssueTableProps {
   projectId: string;
-  onGenerateTestCases: (issue: JiraIssue) => void;
+  onActionClick: (issue: JiraIssue) => void;
+  actionType: 'generateTests' | 'generateCode';
+  isActionDisabled?: boolean;
 }
 
 const PAGE_SIZE = 10;
 
-export function IssueTable({ projectId, onGenerateTestCases }: IssueTableProps) {
+export function IssueTable({ projectId, onActionClick, actionType, isActionDisabled = false }: IssueTableProps) {
   const { credentials } = useAuth();
   const queryClient = useQueryClient();
   const [currentPage, setCurrentPage] = useState(1);
@@ -108,9 +110,17 @@ export function IssueTable({ projectId, onGenerateTestCases }: IssueTableProps) 
 
   const { issues, total, page, totalPages } = paginatedIssues;
 
+  const getActionContent = () => {
+    if (actionType === 'generateCode') {
+      return { icon: <Bot className="mr-2 h-4 w-4" />, text: 'Generate Code' };
+    }
+    return { icon: <Wand2 className="mr-2 h-4 w-4" />, text: 'Generate Tests' };
+  };
+  const { icon, text } = getActionContent();
+
   return (
     <div className="mt-6">
-      <div className={`transition-opacity duration-300 ${isFetching ? 'opacity-50' : 'opacity-100'}`}>
+      <div className={`transition-opacity duration-300 ${isFetching || isActionDisabled ? 'opacity-50' : 'opacity-100'}`}>
         <div className="border rounded-lg">
           <Table>
             <TableHeader>
@@ -138,11 +148,12 @@ export function IssueTable({ projectId, onGenerateTestCases }: IssueTableProps) 
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => onGenerateTestCases(issue)}
+                      onClick={() => onActionClick(issue)}
                       className="shadow-sm hover:shadow-md transition-shadow"
+                      disabled={isActionDisabled}
                     >
-                      <Wand2 className="mr-2 h-4 w-4" />
-                      Generate Tests
+                      {icon}
+                      {text}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -162,7 +173,7 @@ export function IssueTable({ projectId, onGenerateTestCases }: IssueTableProps) 
               variant="outline"
               size="icon"
               onClick={() => setCurrentPage(1)}
-              disabled={currentPage === 1 || isFetching}
+              disabled={currentPage === 1 || isFetching || isActionDisabled}
               className="h-8 w-8"
             >
               <ChevronsLeft className="h-4 w-4" />
@@ -171,7 +182,7 @@ export function IssueTable({ projectId, onGenerateTestCases }: IssueTableProps) 
               variant="outline"
               size="icon"
               onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1 || isFetching}
+              disabled={currentPage === 1 || isFetching || isActionDisabled}
               className="h-8 w-8"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -180,7 +191,7 @@ export function IssueTable({ projectId, onGenerateTestCases }: IssueTableProps) 
               variant="outline"
               size="icon"
               onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages || isFetching}
+              disabled={currentPage === totalPages || isFetching || isActionDisabled}
               className="h-8 w-8"
             >
               <ChevronRight className="h-4 w-4" />
@@ -189,7 +200,7 @@ export function IssueTable({ projectId, onGenerateTestCases }: IssueTableProps) 
               variant="outline"
               size="icon"
               onClick={() => setCurrentPage(totalPages)}
-              disabled={currentPage === totalPages || isFetching}
+              disabled={currentPage === totalPages || isFetching || isActionDisabled}
               className="h-8 w-8"
             >
               <ChevronsRight className="h-4 w-4" />

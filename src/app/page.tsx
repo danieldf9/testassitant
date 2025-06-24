@@ -107,7 +107,8 @@ export default function JiraCaseGenPage() {
             </h2>
             <IssueTable
               projectId={selectedProjectId}
-              onGenerateTestCases={handleGenerateTestCases}
+              onActionClick={handleGenerateTestCases}
+              actionType="generateTests"
             />
         </div>
       )}
@@ -117,7 +118,7 @@ export default function JiraCaseGenPage() {
           isOpen={isRaiseBugModalOpen}
           onClose={() => setIsRaiseBugModalOpen(false)}
           projectId={selectedProjectId}
-          projectKey={selectedProjectKey}
+          projectKey={projectKey}
           projectName={selectedProjectName}
         />
       )}
