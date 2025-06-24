@@ -118,7 +118,7 @@ export default function JiraCaseGenPage() {
           isOpen={isRaiseBugModalOpen}
           onClose={() => setIsRaiseBugModalOpen(false)}
           projectId={selectedProjectId}
-          projectKey={projectKey}
+          projectKey={selectedProjectKey}
           projectName={selectedProjectName}
         />
       )}
