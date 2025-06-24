@@ -36,7 +36,7 @@ interface TestCaseDialogProps {
   onClose: () => void;
 }
 
-type AttachmentType = 'csv' | 'subtask';
+type AttachmentType = 'excel' | 'subtask';
 
 export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) {
   const { credentials } = useAuth();
@@ -208,8 +208,8 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
                     <Label htmlFor="subtask" className="flex items-center gap-1"><ListChecks className="h-4 w-4 text-muted-foreground"/> Sub-tasks</Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="csv" id="csv" />
-                    <Label htmlFor="csv" className="flex items-center gap-1"><FileText className="h-4 w-4 text-muted-foreground"/> CSV File</Label>
+                    <RadioGroupItem value="excel" id="excel" />
+                    <Label htmlFor="excel" className="flex items-center gap-1"><FileText className="h-4 w-4 text-muted-foreground"/> Excel File</Label>
                   </div>
                 </RadioGroup>
               </div>

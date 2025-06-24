@@ -4,6 +4,7 @@
 import type { JiraCredentials } from '@/contexts/AuthContext';
 import { draftJiraBug as draftJiraBugFlow } from '@/ai/flows/draft-jira-bug-flow';
 import { generateTestCases as generateTestCasesFlow, type GenerateTestCasesInput } from '@/ai/flows/generate-test-cases';
+import * as ExcelJS from 'exceljs';
 
 import {
   type GenerateTestCasesOutput,
@@ -493,22 +494,62 @@ export async function generateTestCasesAction(input: GenerateTestCasesInput): Pr
 const AttachTestCasesInputSchema = z.object({
   issueKey: z.string(),
   testCases: GenerateTestCasesOutputSchema,
-  attachmentType: z.enum(['csv', 'subtask']),
+  attachmentType: z.enum(['excel', 'subtask']),
   projectId: z.string(), 
 });
 
-// Helper to convert JSON test cases to a CSV string
-function convertTestCasesToCsv(testCases: GenerateTestCasesOutput): string {
-  const headers = ['Test Case ID', 'Test Case Name', 'Description/Summary', 'Precondition', 'Test Steps', 'Expected Result'];
-  const rows = testCases.map(tc => [
-    `"${tc.testCaseId}"`,
-    `"${tc.testCaseName}"`,
-    `"${tc.description}"`,
-    `"${tc.precondition}"`,
-    `"${tc.testSteps.join('\\n')}"`, // Join steps with a newline character within the CSV cell
-    `"${tc.expectedResult}"`
-  ]);
-  return [headers.join(','), ...rows.map(row => row.join(','))].join('\r\n');
+// Helper to convert JSON test cases to a formatted Excel buffer
+async function convertTestCasesToExcel(testCases: GenerateTestCasesOutput): Promise<Buffer> {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Test Cases');
+
+  // Define columns and set widths
+  worksheet.columns = [
+    { header: 'Test Case ID', key: 'testCaseId', width: 20 },
+    { header: 'Test Case Name', key: 'testCaseName', width: 40 },
+    { header: 'Description', key: 'description', width: 50 },
+    { header: 'Precondition', key: 'precondition', width: 40 },
+    { header: 'Test Steps', key: 'testSteps', width: 60 },
+    { header: 'Expected Result', key: 'expectedResult', width: 60 },
+  ];
+
+  // Style the header row
+  const headerRow = worksheet.getRow(1);
+  headerRow.height = 22;
+  headerRow.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF2F528F' }, // Darker blue for header
+    };
+    cell.border = {
+      top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' },
+    };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+  });
+
+  // Add data rows and apply styling
+  testCases.forEach(tc => {
+    const row = worksheet.addRow({
+      testCaseId: tc.testCaseId,
+      testCaseName: tc.testCaseName,
+      description: tc.description,
+      precondition: tc.precondition,
+      testSteps: tc.testSteps.join('\n'), // Join steps with newline for display in Excel
+      expectedResult: tc.expectedResult,
+    });
+    row.eachCell({ includeEmpty: true }, (cell) => {
+        cell.border = {
+            top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' },
+        };
+        cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
+    });
+  });
+
+  // Convert workbook to buffer
+  const buffer = await workbook.xlsx.writeBuffer();
+  return buffer as Buffer;
 }
 
 // Action to attach generated test cases to a Jira issue
@@ -522,11 +563,11 @@ export async function attachTestCasesToJiraAction(
   const { issueKey, testCases, attachmentType, projectId } = validatedParams;
   const authHeader = `Basic ${Buffer.from(`${email}:${apiToken}`).toString('base64')}`;
 
-  if (attachmentType === 'csv') {
-    const csvContent = convertTestCasesToCsv(testCases);
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  if (attachmentType === 'excel') {
+    const excelBuffer = await convertTestCasesToExcel(testCases);
+    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const formData = new FormData();
-    formData.append('file', blob, `test-cases-${issueKey}.csv`);
+    formData.append('file', blob, `test-cases-${issueKey}.xlsx`);
     
     const response = await fetch(`${jiraUrl}/rest/api/3/issue/${issueKey}/attachments`, {
       method: 'POST',
@@ -538,11 +579,11 @@ export async function attachTestCasesToJiraAction(
     });
 
     if (response.ok) {
-      return { success: true, message: `Successfully attached test cases as CSV to ${issueKey}.` };
+      return { success: true, message: `Successfully attached test cases as Excel file to ${issueKey}.` };
     } else {
       const errorText = await response.text();
-      console.error('Jira API Error (attach CSV):', response.status, errorText);
-      throw new Error(`Failed to attach CSV to ${issueKey}. Status: ${response.status}`);
+      console.error('Jira API Error (attach Excel):', response.status, errorText);
+      throw new Error(`Failed to attach Excel file to ${issueKey}. Status: ${response.status}`);
     }
 
   } else if (attachmentType === 'subtask') {
