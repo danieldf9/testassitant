@@ -33,7 +33,7 @@ Attachment: {{attachmentFilename}}
 
 Instructions:
 1.  **Analyze the Description:** Read the user's bug description carefully. It contains the core information. You must intelligently parse it to extract the steps to reproduce, the actual result, and the expected result.
-2.  **Generate a Concise Summary:** Create a brief, descriptive summary (title) for the bug. Max 10-15 words. It should clearly summarize the core problem.
+2.  **Generate a Concise Summary:** Create a brief, descriptive summary (title) for the bug. The summary **MUST** start with the prefix "Bug: ". Max 10-15 words after the prefix. It should clearly summarize the core problem.
 3.  **Identify the Environment:**
     *   Examine the "User's Bug Description" for explicit mentions of an environment (e.g., "in Production", "on QA server", "Staging", "Dev").
     *   If an environment is found, use that.
