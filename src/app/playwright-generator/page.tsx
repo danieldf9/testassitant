@@ -7,10 +7,11 @@ import { useToast } from '@/hooks/use-toast';
 import { PlaywrightSetupSchema, type PlaywrightSetup, type GenerateTestCasesOutput } from '@/lib/schemas';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { ProjectSelector } from '@/components/ProjectSelector';
 import { IssueTable } from '@/components/IssueTable';
 import { generateTestCasesAction, generatePlaywrightCodeAction, type JiraIssue } from '@/app/actions';
-import { Bot, Info, Loader2, AlertCircle, Wand2, Clipboard, Check, Table as TableIcon, Code } from 'lucide-react';
+import { Bot, Info, Loader2, AlertCircle, Wand2, Clipboard, Check, Table as TableIcon, Code, Search } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/cjs/styles/prism';
@@ -25,6 +26,9 @@ export default function PlaywrightGeneratorPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(undefined);
   const [selectedProjectName, setSelectedProjectName] = useState<string | undefined>(undefined);
   const [selectedProjectKey, setSelectedProjectKey] = useState<string | undefined>(undefined);
+  
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeSearch, setActiveSearch] = useState('');
 
   const [selectedIssue, setSelectedIssue] = useState<JiraIssue | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -44,6 +48,8 @@ export default function PlaywrightGeneratorPage() {
     setGeneratedCode(null);
     setGeneratedTestCases(null);
     setError(null);
+    setSearchTerm('');
+    setActiveSearch('');
   };
   
   const handleGenerateCodeClick = (issue: JiraIssue) => {
@@ -110,6 +116,15 @@ export default function PlaywrightGeneratorPage() {
       setTimeout(() => setHasCopied(false), 2000);
     }
   };
+  
+  const handleSearch = () => {
+    setActiveSearch(searchTerm);
+  };
+
+  const clearSearch = () => {
+    setSearchTerm('');
+    setActiveSearch('');
+  };
 
   if (!isClient) return null;
 
@@ -150,12 +165,32 @@ export default function PlaywrightGeneratorPage() {
         </Card>
 
         {selectedProjectId && (
+          <>
+            <div className="flex items-center gap-2 my-6">
+                <div className="relative flex-grow">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                        placeholder={`Search issues in ${selectedProjectName}...`}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+                        className="pl-10"
+                        disabled={isGenerating}
+                    />
+                </div>
+                <Button onClick={handleSearch} disabled={isGenerating}>Search</Button>
+                {activeSearch && (
+                    <Button variant="ghost" onClick={clearSearch} disabled={isGenerating}>Clear</Button>
+                )}
+            </div>
             <IssueTable
               projectId={selectedProjectId}
               onActionClick={handleGenerateCodeClick}
               actionType="generateCode"
               isActionDisabled={isGenerating}
+              searchQuery={activeSearch}
             />
+          </>
         )}
 
         {isGenerating && (
@@ -253,5 +288,3 @@ export default function PlaywrightGeneratorPage() {
     </div>
   );
 }
-
-    

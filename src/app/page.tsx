@@ -10,7 +10,8 @@ import { TestCaseDialog } from '@/components/TestCaseDialog';
 import { RaiseBugModal } from '@/components/RaiseBugModal';
 import type { JiraIssue } from '@/app/actions';
 import { Button } from '@/components/ui/button';
-import { LogOut, Info, Bug, FileText } from 'lucide-react'; 
+import { Input } from '@/components/ui/input';
+import { LogOut, Info, Bug, FileText, Search } from 'lucide-react'; 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 
@@ -24,6 +25,9 @@ export default function JiraCaseGenPage() {
   const [isTestCaseDialogOpen, setIsTestCaseDialogOpen] = useState(false);
   const [selectedIssueForTestCases, setSelectedIssueForTestCases] = useState<JiraIssue | null>(null);
 
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeSearch, setActiveSearch] = useState('');
+  
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -34,6 +38,8 @@ export default function JiraCaseGenPage() {
     setSelectedProjectId(projectId);
     setSelectedProjectKey(projectKey);
     setSelectedProjectName(projectName);
+    setSearchTerm('');
+    setActiveSearch('');
   };
 
   const handleGenerateTestCases = (issue: JiraIssue) => {
@@ -46,6 +52,15 @@ export default function JiraCaseGenPage() {
       setIsRaiseBugModalOpen(true);
     }
   };
+  
+  const handleSearch = () => {
+    setActiveSearch(searchTerm);
+  };
+
+  const clearSearch = () => {
+    setSearchTerm('');
+    setActiveSearch('');
+  };
 
   if (!isClient) {
     return null; 
@@ -57,7 +72,7 @@ export default function JiraCaseGenPage() {
 
   return (
     <div className="container mx-auto p-4 md:p-8">
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
         <div className="flex-grow">
           {credentials && (
             <ProjectSelector 
@@ -101,7 +116,23 @@ export default function JiraCaseGenPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="mt-8">
+        <div className="mt-6">
+            <div className="flex items-center gap-2 mb-4">
+                <div className="relative flex-grow">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                        placeholder={`Search issues in ${selectedProjectName}...`}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+                        className="pl-10"
+                    />
+                </div>
+                <Button onClick={handleSearch}>Search</Button>
+                {activeSearch && (
+                    <Button variant="ghost" onClick={clearSearch}>Clear</Button>
+                )}
+            </div>
             <h2 className="text-2xl font-semibold text-foreground mb-4">
                 Issues for {selectedProjectName} ({selectedProjectKey})
             </h2>
@@ -109,6 +140,7 @@ export default function JiraCaseGenPage() {
               projectId={selectedProjectId}
               onActionClick={handleGenerateTestCases}
               actionType="generateTests"
+              searchQuery={activeSearch}
             />
         </div>
       )}

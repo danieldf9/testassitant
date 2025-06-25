@@ -245,6 +245,7 @@ const FetchIssuesParamsSchema = z.object({
   projectId: z.string(),
   page: z.number().min(1).optional().default(1),
   pageSize: z.number().min(1).max(50).optional().default(10),
+  searchQuery: z.string().optional(),
 });
 
 export interface PaginatedIssuesResponse {
@@ -264,12 +265,18 @@ export async function fetchIssuesAction(
     const validatedParams = FetchIssuesParamsSchema.parse(params);
 
     const { jiraUrl, email, apiToken } = validatedCredentials;
-    const { projectId, page, pageSize } = validatedParams;
+    const { projectId, page, pageSize, searchQuery } = validatedParams;
 
     const authHeader = `Basic ${Buffer.from(`${email}:${apiToken}`).toString('base64')}`;
     const startAt = (page - 1) * pageSize;
 
-    const jql = `project = ${projectId} ORDER BY created DESC`;
+    let jql = `project = ${projectId}`;
+    if (searchQuery && searchQuery.trim()) {
+      const sanitizedQuery = searchQuery.replace(/"/g, '\\"');
+      jql += ` AND text ~ "${sanitizedQuery}*"`;
+    }
+    jql += ` ORDER BY created DESC`;
+
     const fields = `summary,issuetype,status,description,${ACCEPTANCE_CRITERIA_CUSTOM_FIELD_ID},project`;
 
     const apiUrl = `${jiraUrl}/rest/api/3/search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${pageSize}&fields=${fields}`;

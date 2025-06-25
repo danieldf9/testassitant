@@ -24,21 +24,22 @@ interface IssueTableProps {
   onActionClick: (issue: JiraIssue) => void;
   actionType: 'generateTests' | 'generateCode';
   isActionDisabled?: boolean;
+  searchQuery?: string;
 }
 
 const PAGE_SIZE = 10;
 
-export function IssueTable({ projectId, onActionClick, actionType, isActionDisabled = false }: IssueTableProps) {
+export function IssueTable({ projectId, onActionClick, actionType, isActionDisabled = false, searchQuery }: IssueTableProps) {
   const { credentials } = useAuth();
   const queryClient = useQueryClient();
   const [currentPage, setCurrentPage] = useState(1);
 
   const { data: paginatedIssues, isLoading, error, isFetching } = useQuery<PaginatedIssuesResponse, Error>({
-    queryKey: ['jiraIssues', projectId, currentPage, credentials?.jiraUrl],
+    queryKey: ['jiraIssues', projectId, currentPage, searchQuery, credentials?.jiraUrl],
     queryFn: () => {
       if (!credentials) throw new Error('Not authenticated');
       if (!projectId) throw new Error('Project ID is required');
-      return fetchIssuesAction(credentials, { projectId, page: currentPage, pageSize: PAGE_SIZE });
+      return fetchIssuesAction(credentials, { projectId, page: currentPage, pageSize: PAGE_SIZE, searchQuery });
     },
     enabled: !!credentials && !!projectId,
     keepPreviousData: true,
@@ -47,15 +48,15 @@ export function IssueTable({ projectId, onActionClick, actionType, isActionDisab
   useEffect(() => {
     if (credentials && projectId && paginatedIssues && currentPage < paginatedIssues.totalPages) {
       queryClient.prefetchQuery({
-        queryKey: ['jiraIssues', projectId, currentPage + 1, credentials?.jiraUrl],
-        queryFn: () => fetchIssuesAction(credentials, { projectId, page: currentPage + 1, pageSize: PAGE_SIZE }),
+        queryKey: ['jiraIssues', projectId, currentPage + 1, searchQuery, credentials?.jiraUrl],
+        queryFn: () => fetchIssuesAction(credentials, { projectId, page: currentPage + 1, pageSize: PAGE_SIZE, searchQuery }),
       });
     }
-  }, [paginatedIssues, currentPage, projectId, credentials, queryClient]);
+  }, [paginatedIssues, currentPage, projectId, searchQuery, credentials, queryClient]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [projectId]);
+  }, [projectId, searchQuery]);
 
 
   const getStatusBadgeVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
@@ -103,7 +104,12 @@ export function IssueTable({ projectId, onActionClick, actionType, isActionDisab
       <Alert className="mt-6">
          <AlertCircle className="h-4 w-4" />
         <AlertTitle>No Issues Found</AlertTitle>
-        <AlertDescription>No issues found for the selected project. You can still raise a new bug.</AlertDescription>
+        <AlertDescription>
+            {searchQuery 
+                ? `No issues found matching your search for "${searchQuery}". Try a different keyword.`
+                : 'No issues found for the selected project. You can still raise a new bug.'
+            }
+        </AlertDescription>
       </Alert>
     );
   }
