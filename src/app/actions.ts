@@ -174,7 +174,7 @@ function extractTextFromADF(adf: any): string {
 }
 
 
-export async function fetchProjectsAction(credentials: JiraCredentials): Promise<JiraProject[]> {
+export async function fetchProjectsAction(credentials: JiraCredentials): Promise<JraProject[]> {
   try {
     const validatedCredentials = CredentialsSchema.parse(credentials);
     const { jiraUrl, email, apiToken } = validatedCredentials;
@@ -667,7 +667,8 @@ async function createSingleJiraIssue(
       }
     };
 
-    if (acceptanceCriteriaADF) {
+    // Only add acceptance criteria for Stories and Tasks, and only if it exists.
+    if (acceptanceCriteriaADF && (issueData.type === 'Story' || issueData.type === 'Task')) {
         payload.fields[ACCEPTANCE_CRITERIA_CUSTOM_FIELD_ID] = acceptanceCriteriaADF;
     }
     
@@ -775,5 +776,7 @@ export async function createJiraTicketsAction(
         };
     }
 }
+
+    
 
     
