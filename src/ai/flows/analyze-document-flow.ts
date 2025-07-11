@@ -46,7 +46,7 @@ Instructions:
     *   \`type\`: Must be one of "Epic", "Story", "Task", "Sub-task", "Bug".
     *   \`summary\`: A concise and descriptive summary (e.g., "User Registration: Implement email/password signup").
     *   \`description\`: A **comprehensive and self-contained description** detailed enough for a developer to begin work. This field should contain the main narrative, goals, and details but **SHOULD NOT include the acceptance criteria unless the type is Epic, Sub-task, or Bug**.
-    *   \`acceptanceCriteria\`: This field should ONLY be used for "Story" and "Task" issue types. For all other types ("Epic", "Sub-task", "Bug"), this field MUST be omitted.
+    *   \`acceptanceCriteria\`: This field should ONLY be used for "Story" and "Task" issue types. For all other types ("Epic", "Sub-task", "Bug"), this field MUST be omitted from the JSON output.
     *   \`suggestedId\`: (Optional) For Epics and top-level Stories/Tasks, you can suggest a Jira-like ID using the project key (e.g., "{{projectKey}}-1", "{{projectKey}}-2"). Do not add this for sub-tasks.
 6.  **Completeness & Detail:** Be thorough. Capture all distinct pieces of work. Prioritize detail and clarity in descriptions. If the document is vague, make reasonable assumptions and clearly state "Assumption: ..." within the ticket description.
 7.  **Clarity & Actionability:** Ensure summaries and descriptions are clear and actionable.
