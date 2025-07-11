@@ -22,6 +22,8 @@ import {
   type AnalyzeDocumentOutput,
   CreateJiraTicketsInputSchema,
   type DraftTicketRecursive,
+  LocalStorageBugTemplateSchema,
+  type LocalStorageBugTemplate,
 } from '@/lib/schemas';
 import { z } from 'zod';
 
@@ -773,3 +775,5 @@ export async function createJiraTicketsAction(
         };
     }
 }
+
+    
