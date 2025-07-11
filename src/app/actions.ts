@@ -1,4 +1,3 @@
-
 "use server";
 
 import type { JiraCredentials } from '@/contexts/AuthContext';
@@ -656,8 +655,7 @@ async function createSingleJiraIssue(
 ): Promise<{ key: string, id: string }> {
     
     const descriptionADF = markdownToAdf(issueData.description);
-    // REMOVED: Acceptance criteria logic to prevent errors. It is now part of the description.
-
+    
     const payload: any = {
       fields: {
         project: { id: projectId },
