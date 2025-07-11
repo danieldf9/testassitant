@@ -656,7 +656,7 @@ async function createSingleJiraIssue(
 ): Promise<{ key: string, id: string }> {
     
     const descriptionADF = markdownToAdf(issueData.description);
-    const acceptanceCriteriaADF = markdownToAdf(issueData.acceptanceCriteria);
+    // REMOVED: Acceptance criteria logic to prevent errors. It is now part of the description.
 
     const payload: any = {
       fields: {
@@ -666,11 +666,6 @@ async function createSingleJiraIssue(
         description: descriptionADF,
       }
     };
-
-    // DEFENSIVE CODING: Only add acceptance criteria for Stories and Tasks, and only if it exists.
-    if (acceptanceCriteriaADF && (issueData.type === 'Story' || issueData.type === 'Task')) {
-        payload.fields[ACCEPTANCE_CRITERIA_CUSTOM_FIELD_ID] = acceptanceCriteriaADF;
-    }
     
     // For regular issues (Story, Task, Bug) inside an Epic
     if (epicKey && issueData.type !== 'Epic' && issueData.type !== 'Sub-task') {
