@@ -128,17 +128,21 @@ export function DocumentTicketCreator({ projectId, projectKey, projectName }: Do
         return newTickets;
       }
 
-      let currentParentChildrenList: any = newTickets; // Explicitly type if possible, or use any if structure is dynamic
-      for (let i = 0; i < path.length - 1; i++) {
-          const parent = currentParentChildrenList[path[i]];
-          if (!parent || !parent.children) {
+      let currentParentChildrenList: any = newTickets;
+      for (let i = 0; i < path.length - 2; i++) {
+         const parent = currentParentChildrenList[path[i]];
+         if (!parent || !parent.children) {
               console.error("Invalid path for ticket deletion - parent or children missing.", path);
               return prevTickets; // Path broken or invalid
           }
-          currentParentChildrenList = parent.children;
+         currentParentChildrenList = parent.children;
       }
       
-      currentParentChildrenList.splice(path[path.length - 1], 1);
+      const parent = currentParentChildrenList[path[path.length - 2]];
+      if (parent && parent.children) {
+        parent.children.splice(path[path.length - 1], 1);
+      }
+      
       return newTickets;
     });
   }, []);
@@ -161,7 +165,7 @@ export function DocumentTicketCreator({ projectId, projectKey, projectName }: Do
         title: result.success ? "Ticket Creation Processed" : "Ticket Creation Issues",
         description: result.message,
         variant: result.success && result.createdTickets.length > 0 && !result.message.toLowerCase().includes("fail") ? "default" : "destructive",
-        className: result.success && result.createdTickets.length > 0 && !result.message.toLowerCase().includes("fail") ? "bg-green-100 border-green-300 text-green-800 dark:bg-green-900 dark:border-green-700 dark:text-green-200" : "",
+        className: result.success && result.createdTickets.length > 0 && !result.message.toLowerCase().includes("fail") && !result.message.toLowerCase().includes("partial") ? "bg-green-100 border-green-300 text-green-800 dark:bg-green-900 dark:border-green-700 dark:text-green-200" : "",
         duration: result.message.length > 100 || !result.success ? 15000 : 7000,
       });
       if (result.success && !result.message.toLowerCase().includes("fail") && !result.message.toLowerCase().includes("partial")) {
@@ -177,6 +181,10 @@ export function DocumentTicketCreator({ projectId, projectKey, projectName }: Do
     } finally {
       setIsCreatingTickets(false);
     }
+  };
+  
+  const countTotalTickets = (tickets: DraftTicketRecursive[]): number => {
+    return tickets.reduce((acc, t) => acc + 1 + (t.children ? countTotalTickets(t.children) : 0), 0);
   };
 
   const RenderDraftedTicket = useCallback(({ ticket, path }: { ticket: DraftTicketRecursive, path: number[] }) => (
@@ -339,7 +347,7 @@ export function DocumentTicketCreator({ projectId, projectKey, projectName }: Do
             </div>
             <Button onClick={handleCreateTickets} disabled={isCreatingTickets || isAnalyzing || draftedTickets.length === 0} className="mt-6 w-full sm:w-auto">
               {isCreatingTickets ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
-              {isCreatingTickets ? 'Creating Tickets...' : `Create ${draftedTickets.reduce((acc, t) => acc + 1 + (t.children?.reduce((sAcc, sT) => sAcc + 1 + (sT.children?.length || 0),0) || 0), 0)} Ticket(s) in Jira`}
+              {isCreatingTickets ? 'Creating Tickets...' : `Create ${countTotalTickets(draftedTickets)} Ticket(s) in Jira`}
             </Button>
             {creationError && (
               <Alert variant="destructive" className="mt-4">

@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, Settings, Code, Bot } from 'lucide-react'; 
+import { Menu, Settings, Code, Bot, FileUp } from 'lucide-react'; 
 import { JiraLogo } from '@/components/icons/JiraLogo';
 
 export function AppHeader() {
@@ -19,6 +19,12 @@ export function AppHeader() {
         </Link>
 
         <div className="hidden items-center gap-2 md:flex">
+           <Button variant="ghost" asChild>
+            <Link href="/document-importer">
+              <FileUp className="mr-2 h-4 w-4" suppressHydrationWarning />
+              Document Importer
+            </Link>
+          </Button>
            <Button variant="ghost" asChild>
             <Link href="/playwright-generator">
               <Bot className="mr-2 h-4 w-4" suppressHydrationWarning />
@@ -52,6 +58,13 @@ export function AppHeader() {
                 <Link href="/" className="flex items-center gap-2 text-lg font-semibold">
                   <JiraLogo className="h-6 w-6 text-primary" suppressHydrationWarning />
                   <span>JiraCaseGen</span>
+                </Link>
+                 <Link
+                  href="/document-importer"
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-muted-foreground hover:text-foreground"
+                >
+                  <FileUp className="h-5 w-5" suppressHydrationWarning />
+                  Document Importer
                 </Link>
                  <Link
                   href="/playwright-generator"

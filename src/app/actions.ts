@@ -5,6 +5,7 @@ import type { JiraCredentials } from '@/contexts/AuthContext';
 import { draftJiraBug as draftJiraBugFlow } from '@/ai/flows/draft-jira-bug-flow';
 import { generateTestCases as generateTestCasesFlow, type GenerateTestCasesInput } from '@/ai/flows/generate-test-cases';
 import { generatePlaywrightCode as generatePlaywrightCodeFlow, type GeneratePlaywrightCodeInput } from '@/ai/flows/generate-playwright-code';
+import { analyzeDocument as analyzeDocumentFlow, type AnalyzeDocumentInput } from '@/ai/flows/analyze-document-flow';
 import * as ExcelJS from 'exceljs';
 
 import {
@@ -17,6 +18,10 @@ import {
   CreateJiraBugPayloadSchema,
   GeneratePlaywrightCodeOutputSchema,
   type GeneratePlaywrightCodeOutput,
+  AnalyzeDocumentOutputSchema,
+  type AnalyzeDocumentOutput,
+  CreateJiraTicketsInputSchema,
+  type DraftTicketRecursive,
 } from '@/lib/schemas';
 import { z } from 'zod';
 
@@ -50,6 +55,7 @@ const CredentialsSchema = z.object({
 });
 
 const ACCEPTANCE_CRITERIA_CUSTOM_FIELD_ID = 'customfield_10009'; // Example custom field ID
+const EPIC_LINK_CUSTOM_FIELD_ID = 'customfield_10002'; // Example custom field ID for Epic Link
 
 // Helper to convert plain text to Atlassian Document Format (ADF) for description
 function textToAdf(text: string | undefined): any {
@@ -73,13 +79,17 @@ function markdownToAdf(markdown: string | undefined): any {
   const lines = markdown.split('\n');
 
   let inList: 'orderedList' | 'bulletList' | null = null;
+  let currentList: any = null;
 
   for (const line of lines) {
     const trimmedLine = line.trim();
 
-    // Check for list item endings
-    if (!trimmedLine.match(/^(\d+\.|[-*])\s+/) && inList) {
+    const isListItem = trimmedLine.match(/^(\d+\.|[-*])\s+/);
+
+    // If the line is not a list item, but we were in a list, end the list.
+    if (!isListItem && inList) {
       inList = null;
+      currentList = null;
     }
 
     // Headings
@@ -100,22 +110,24 @@ function markdownToAdf(markdown: string | undefined): any {
     else if (trimmedLine.match(/^\d+\.\s+/)) {
       const text = trimmedLine.replace(/^\d+\.\s+/, '').trim();
       const listItem = { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] };
-      if (inList === 'orderedList') {
-        adfContent[adfContent.length - 1].content.push(listItem);
+      if (inList === 'orderedList' && currentList) {
+        currentList.content.push(listItem);
       } else {
         inList = 'orderedList';
-        adfContent.push({ type: 'orderedList', content: [listItem] });
+        currentList = { type: 'orderedList', content: [listItem] };
+        adfContent.push(currentList);
       }
     }
     // Bullet List Item (e.g., "- Item" or "* Item")
     else if (trimmedLine.match(/^[-*]\s+/)) {
       const text = trimmedLine.replace(/^[-*]\s+/, '').trim();
       const listItem = { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] };
-       if (inList === 'bulletList') {
-        adfContent[adfContent.length - 1].content.push(listItem);
+       if (inList === 'bulletList' && currentList) {
+        currentList.content.push(listItem);
       } else {
         inList = 'bulletList';
-        adfContent.push({ type: 'bulletList', content: [listItem] });
+        currentList = { type: 'bulletList', content: [listItem] };
+        adfContent.push(currentList);
       }
     }
     // Paragraphs (non-empty lines)
@@ -610,4 +622,154 @@ export async function attachTestCasesToJiraAction(
     console.error('Jira API Error (attach Excel):', response.status, errorText);
     throw new Error(`Failed to attach Excel file to ${issueKey}. Status: ${response.status}`);
   }
+}
+
+
+// Document Analysis Actions
+
+export async function analyzeDocumentAction(input: AnalyzeDocumentInput): Promise<AnalyzeDocumentOutput> {
+  try {
+    const result = await analyzeDocumentFlow(input);
+    return AnalyzeDocumentOutputSchema.parse(result);
+  } catch (error: any) {
+    console.error("Error in analyzeDocumentAction:", error);
+    let friendlyMessage = "Failed to analyze document due to an AI processing error.";
+    if (error instanceof z.ZodError) {
+      friendlyMessage = "AI returned an unexpected format for the drafted tickets.";
+    } else if (error.message) {
+      friendlyMessage = `Failed to analyze document: ${error.message}`;
+    }
+    throw new Error(friendlyMessage);
+  }
+}
+
+// A helper function to create a single Jira issue
+async function createSingleJiraIssue(
+  authHeader: string,
+  jiraUrl: string,
+  projectId: string,
+  issueData: Omit<DraftTicketRecursive, 'children' | 'suggestedId'>,
+  parentIssueKey?: string,
+  epicKey?: string
+): Promise<{ key: string, id: string }> {
+    
+    const descriptionADF = markdownToAdf(issueData.description);
+    const acceptanceCriteriaADF = markdownToAdf(issueData.acceptanceCriteria);
+
+    const payload: any = {
+      fields: {
+        project: { id: projectId },
+        summary: issueData.summary,
+        issuetype: { name: issueData.type },
+        description: descriptionADF,
+      }
+    };
+
+    if (acceptanceCriteriaADF) {
+        payload.fields[ACCEPTANCE_CRITERIA_CUSTOM_FIELD_ID] = acceptanceCriteriaADF;
+    }
+    
+    // For regular issues (Story, Task, Bug) inside an Epic
+    if (epicKey && issueData.type !== 'Epic' && issueData.type !== 'Sub-task') {
+        payload.fields[EPIC_LINK_CUSTOM_FIELD_ID] = epicKey;
+    }
+    
+    // For sub-tasks
+    if (parentIssueKey && issueData.type === 'Sub-task') {
+      payload.fields.parent = { key: parentIssueKey };
+    }
+
+    const response = await fetch(`${jiraUrl}/rest/api/3/issue`, {
+        method: 'POST',
+        headers: { 'Authorization': authHeader, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        let userFriendlyError = `Status ${response.status}`;
+        try {
+            const errorJson = JSON.parse(errorText);
+            const messages = errorJson.errorMessages || [];
+            const errors = errorJson.errors ? Object.entries(errorJson.errors).map(([k,v]) => `${k}: ${v}`).join(', ') : '';
+            userFriendlyError += ` - ${messages.join('. ')} ${errors}`;
+        } catch (e) { /* ignore json parse error */ }
+        console.error(`Jira API Error (create issue - ${issueData.summary}): Status ${response.status}`, errorText);
+        throw new Error(`Failed to create '${issueData.summary}': ${userFriendlyError}`);
+    }
+
+    const createdIssue = await response.json();
+    return { key: createdIssue.key, id: createdIssue.id };
+}
+
+
+export async function createJiraTicketsAction(
+  credentials: JiraCredentials,
+  params: z.infer<typeof CreateJiraTicketsInputSchema>
+): Promise<{ success: boolean; message: string; createdTickets: {key: string; summary: string}[] }> {
+    const { jiraUrl, email, apiToken } = CredentialsSchema.parse(credentials);
+    const { projectId, tickets } = CreateJiraTicketsInputSchema.parse(params);
+    const authHeader = `Basic ${Buffer.from(`${email}:${apiToken}`).toString('base64')}`;
+
+    const createdTickets: {key: string; summary: string}[] = [];
+    const errors: string[] = [];
+
+    // Recursive function to process tickets
+    async function processTicketsRecursive(
+      ticketQueue: DraftTicketRecursive[], 
+      parentKey?: string, 
+      epicKey?: string
+    ) {
+        for (const ticket of ticketQueue) {
+            try {
+                // Determine the correct epic context for the current ticket
+                const currentEpicKey = ticket.type === 'Epic' ? undefined : epicKey;
+
+                const createdIssue = await createSingleJiraIssue(
+                    authHeader, jiraUrl, projectId, ticket, parentKey, currentEpicKey
+                );
+                
+                createdTickets.push({ key: createdIssue.key, summary: ticket.summary });
+
+                if (ticket.children && ticket.children.length > 0) {
+                    // If the current ticket is an Epic, its key becomes the epicKey for its children
+                    // Otherwise, pass down the existing epicKey
+                    const nextEpicKeyForChildren = ticket.type === 'Epic' ? createdIssue.key : epicKey;
+                    
+                    // The current ticket becomes the parent for its children
+                    await processTicketsRecursive(ticket.children, createdIssue.key, nextEpicKeyForChildren);
+                }
+
+            } catch (error: any) {
+                console.error(`Error processing ticket "${ticket.summary}":`, error);
+                errors.push(error.message || `An unknown error occurred for ticket "${ticket.summary}".`);
+            }
+        }
+    }
+
+    await processTicketsRecursive(tickets);
+
+    const totalRequested = (function count(ts: DraftTicketRecursive[]): number {
+      return ts.reduce((acc, t) => acc + 1 + (t.children ? count(t.children) : 0), 0);
+    })(tickets);
+
+    if (errors.length === 0) {
+        return {
+            success: true,
+            message: `Successfully created all ${createdTickets.length} tickets in Jira.`,
+            createdTickets,
+        };
+    } else if (createdTickets.length > 0) {
+        return {
+            success: false,
+            message: `Partially completed. Created ${createdTickets.length} of ${totalRequested} tickets. Failures: ${errors.join('; ')}`,
+            createdTickets,
+        };
+    } else {
+        return {
+            success: false,
+            message: `Failed to create any tickets. Errors: ${errors.join('; ')}`,
+            createdTickets: [],
+        };
+    }
 }

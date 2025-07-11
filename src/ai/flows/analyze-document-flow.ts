@@ -46,11 +46,11 @@ Instructions:
 3.  **Decompose Stories/Tasks into Sub-tasks:** These are smaller, actionable steps required to complete a story or task. The 'description' field for sub-tasks should be concise and clearly state the work item. 'acceptanceCriteria' for sub-tasks is usually not needed but can be added if specific testable outcomes exist.
 4.  **Structure:** Provide the output as a JSON array. Each element can be an epic. Epics can have a 'children' array containing stories or tasks. Stories/tasks can also have a 'children' array for their sub-tasks.
 5.  **Ticket Details (Ensure comprehensiveness for development):**
-    *   \\\`type\\\`: Must be one of "Epic", "Story", "Task", "Sub-task", "Bug".
-    *   \\\`summary\\\`: A concise and descriptive summary (e.g., "User Registration: Implement email/password signup"). For epics and top-level stories/tasks, try to make them unique.
-    *   \\\`description\\\`: A **comprehensive and self-contained description** derived from the document, detailed enough for a developer to begin work. This field should contain the main narrative, goals, and details but **SHOULD NOT include the acceptance criteria**. For Bugs, it should contain reproduction steps, actual vs. expected results.
-    *   \\\`acceptanceCriteria\\\`: (Optional) A list of specific, measurable, achievable, relevant, and testable acceptance criteria. Format as a multi-line string if needed. This field is primarily for Stories and Tasks.
-    *   \\\`suggestedId\\\`: (Optional) For Epics and top-level Stories/Tasks, you can suggest a Jira-like ID using the project key (e.g., "{{projectKey}}-1", "{{projectKey}}-2"). Do not add this for sub-tasks. Ensure these are for reference and the actual ID will be assigned by Jira.
+    *   \`type\`: Must be one of "Epic", "Story", "Task", "Sub-task", "Bug".
+    *   \`summary\`: A concise and descriptive summary (e.g., "User Registration: Implement email/password signup"). For epics and top-level stories/tasks, try to make them unique.
+    *   \`description\`: A **comprehensive and self-contained description** derived from the document, detailed enough for a developer to begin work. This field should contain the main narrative, goals, and details but **SHOULD NOT include the acceptance criteria**. For Bugs, it should contain reproduction steps, actual vs. expected results.
+    *   \`acceptanceCriteria\`: (Optional) A list of specific, measurable, achievable, relevant, and testable acceptance criteria. Format as a multi-line string if needed. This field is primarily for Stories and Tasks.
+    *   \`suggestedId\`: (Optional) For Epics and top-level Stories/Tasks, you can suggest a Jira-like ID using the project key (e.g., "{{projectKey}}-1", "{{projectKey}}-2"). Do not add this for sub-tasks. Ensure these are for reference and the actual ID will be assigned by Jira.
 6.  **Completeness & Detail:** Be thorough. Capture all distinct pieces of work. Prioritize detail and clarity in descriptions and ensure acceptance criteria are placed in the correct field. If the document is vague on a specific point, make reasonable assumptions based on common practices for the described feature and clearly state "Assumption: ..." within the ticket description. The goal is to produce tickets that are as development-ready as possible.
 7.  **Clarity & Actionability:** Ensure summaries, descriptions, and acceptance criteria are clear, actionable, and directly reflect the content of the document, expanded with necessary detail for implementation.
 8.  **Format:** Ensure the output strictly adheres to the JSON schema provided for 'AnalyzeDocumentOutputSchema'. The root should be an array of tickets.
@@ -86,4 +86,3 @@ const analyzeDocumentFlow = ai.defineFlow(
     return output;
   }
 );
-

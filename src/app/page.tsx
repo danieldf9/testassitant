@@ -11,7 +11,7 @@ import { RaiseBugModal } from '@/components/RaiseBugModal';
 import type { JiraIssue } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { LogOut, Info, Bug, FileText, Search } from 'lucide-react'; 
+import { LogOut, Info, Bug, FileText, Search, FileUp } from 'lucide-react'; 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 
@@ -83,9 +83,16 @@ export default function JiraCaseGenPage() {
         </div>
         <div className="flex items-center gap-2">
             {selectedProjectId && (
-                 <Button variant="destructive" onClick={openRaiseBugModal} className="shadow-sm hover:shadow-md transition-shadow">
+                <>
+                  <Button variant="outline" asChild className="shadow-sm hover:shadow-md transition-shadow">
+                     <Link href="/document-importer">
+                        <FileUp className="mr-2 h-4 w-4" /> Import from Doc
+                     </Link>
+                  </Button>
+                  <Button variant="destructive" onClick={openRaiseBugModal} className="shadow-sm hover:shadow-md transition-shadow">
                     <Bug className="mr-2 h-4 w-4" /> Raise Bug
-                 </Button>
+                  </Button>
+                </>
             )}
             <Button variant="outline" onClick={logout} className="shadow-sm hover:shadow-md transition-shadow">
                 <LogOut className="mr-2 h-4 w-4" /> Disconnect Jira
@@ -106,7 +113,7 @@ export default function JiraCaseGenPage() {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">
-              Once a project is selected, you will see a list of issues to generate test cases from, and you can raise new bugs.
+              Once a project is selected, you can view issues, generate test cases, raise bugs, or import tickets from a document.
             </p>
              <div className="mt-4">
               <Button variant="link" asChild className="p-0 h-auto">
