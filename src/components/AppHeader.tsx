@@ -14,7 +14,7 @@ export function AppHeader() {
         <Link href="/" className="flex items-center gap-2">
           <JiraLogo className="h-8 w-8 text-primary" suppressHydrationWarning />
           <span className="text-xl font-bold tracking-tight text-foreground">
-            JiraCaseGen
+            Test Assistant
           </span>
         </Link>
 
@@ -57,7 +57,7 @@ export function AppHeader() {
               <nav className="grid gap-4 py-6">
                 <Link href="/" className="flex items-center gap-2 text-lg font-semibold">
                   <JiraLogo className="h-6 w-6 text-primary" suppressHydrationWarning />
-                  <span>JiraCaseGen</span>
+                  <span>Test Assistant</span>
                 </Link>
                  <Link
                   href="/document-importer"

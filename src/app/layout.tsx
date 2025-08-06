@@ -11,8 +11,8 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: 'JiraCaseGen',
-  description: 'Generate test cases from Jira tickets',
+  title: 'Test Assistant',
+  description: 'AI-powered test assistance for Jira',
 };
 
 export default function RootLayout({

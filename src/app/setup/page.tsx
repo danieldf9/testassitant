@@ -8,9 +8,9 @@ export default function SetupPage() {
     <div className="container mx-auto max-w-3xl p-4 md:p-8">
       <Card className="shadow-xl">
         <CardHeader>
-          <CardTitle className="text-3xl font-bold">Setup JiraCaseGen</CardTitle>
+          <CardTitle className="text-3xl font-bold">Setup Test Assistant</CardTitle>
           <CardDescription className="text-lg text-muted-foreground">
-            Follow these steps to connect JiraCaseGen to your Jira instance and start generating test cases.
+            Follow these steps to connect Test Assistant to your Jira instance and start generating test cases.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-8">
@@ -20,7 +20,7 @@ export default function SetupPage() {
               1. Obtain a Jira API Token
             </h2>
             <p className="mb-2 text-foreground/90">
-              JiraCaseGen requires an API token to securely connect to your Jira account. This token acts like a password for applications.
+              Test Assistant requires an API token to securely connect to your Jira account. This token acts like a password for applications.
             </p>
             <ul className="list-disc list-inside space-y-1 pl-4 text-foreground/80">
               <li>Log in to your Atlassian account that has access to your Jira instance.</li>
@@ -36,7 +36,7 @@ export default function SetupPage() {
                 </a>.
               </li>
               <li>Click <span className="font-semibold">&quot;Create API token&quot;</span>.</li>
-              <li>Give your token a descriptive label (e.g., "JiraCaseGen Token").</li>
+              <li>Give your token a descriptive label (e.g., "Test Assistant Token").</li>
               <li>Copy the generated token immediately. <strong className="text-destructive">You won&apos;t be able to see it again.</strong> Store it securely.</li>
             </ul>
           </section>
@@ -60,14 +60,14 @@ export default function SetupPage() {
           <section>
             <h2 className="text-2xl font-semibold mb-3 flex items-center">
               <ListChecks className="mr-2 h-6 w-6 text-primary" />
-              3. Connect JiraCaseGen
+              3. Connect Test Assistant
             </h2>
             <p className="mb-2 text-foreground/90">
               Once you have your API token, Jira URL, and email:
             </p>
             <ul className="list-disc list-inside space-y-1 pl-4 text-foreground/80">
               <li>
-                Go to the <Link href="/" className="text-primary underline hover:text-primary/80 font-medium">JiraCaseGen home page</Link>.
+                Go to the <Link href="/" className="text-primary underline hover:text-primary/80 font-medium">Test Assistant home page</Link>.
               </li>
               <li>You will be prompted to enter your Jira URL, email address, and the API token you generated.</li>
               <li>Fill in the details and click &quot;Connect&quot;.</li>
