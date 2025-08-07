@@ -1,3 +1,4 @@
+
 "use server";
 
 import type { JiraCredentials } from '@/contexts/AuthContext';
@@ -57,20 +58,6 @@ const CredentialsSchema = z.object({
 
 const ACCEPTANCE_CRITERIA_CUSTOM_FIELD_ID = 'customfield_10009'; // Example custom field ID
 const EPIC_LINK_CUSTOM_FIELD_ID = 'customfield_10002'; // Example custom field ID for Epic Link
-
-// Helper to convert plain text to Atlassian Document Format (ADF) for description
-function textToAdf(text: string | undefined): any {
-  if (!text || text.trim() === "") return null;
-  return {
-    type: "doc",
-    version: 1,
-    content: text.split('\n').filter(p => p.trim() !== "").map(paragraphText => ({
-        type: "paragraph",
-        content: [{ type: "text", text: paragraphText.trim() }]
-    }))
-  };
-}
-
 
 // Basic Markdown to ADF converter
 function markdownToAdf(markdown: string | undefined): any {
@@ -538,7 +525,7 @@ const AttachTestCasesInputSchema = z.object({
 });
 
 // Helper to convert JSON test cases to a formatted Excel buffer
-async function convertTestCasesToExcel(testCases: GenerateTestCasesOutput): Promise<Buffer> {
+export async function convertTestCasesToExcel(testCases: GenerateTestCasesOutput): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Test Cases');
 
@@ -649,7 +636,7 @@ async function createSingleJiraIssue(
   authHeader: string,
   jiraUrl: string,
   projectId: string,
-  issueData: Omit<DraftTicketRecursive, 'children' | 'suggestedId'>,
+  issueData: Omit<DraftTicketRecursive, 'children' | 'suggestedId' | 'acceptanceCriteria'>,
   parentIssueKey?: string,
   epicKey?: string
 ): Promise<{ key: string, id: string }> {
@@ -689,7 +676,7 @@ async function createSingleJiraIssue(
             const messages = errorJson.errorMessages || [];
             const errors = errorJson.errors ? Object.entries(errorJson.errors).map(([k,v]) => `${k}: ${v}`).join(', ') : '';
             userFriendlyError += ` - ${messages.join('. ')} ${errors}`;
-        } catch (e) { /* ignore json parse error */ }
+        } catch (e) { /* An unexpected response was received from the server. */ }
         console.error(`Jira API Error (create issue - ${issueData.summary}): Status ${response.status}`, errorText);
         throw new Error(`Failed to create '${issueData.summary}': ${userFriendlyError}`);
     }
@@ -769,3 +756,5 @@ export async function createJiraTicketsAction(
         };
     }
 }
+
+    

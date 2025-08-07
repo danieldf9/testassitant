@@ -2,7 +2,7 @@
 "use client";
 
 import type { JiraIssue } from '@/app/actions';
-import { generateTestCasesAction, attachTestCasesToJiraAction } from '@/app/actions';
+import { generateTestCasesAction, attachTestCasesToJiraAction, convertTestCasesToExcel } from '@/app/actions';
 import type { GenerateTestCasesOutput } from '@/ai/flows/generate-test-cases';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, AlertCircle, Wand2, FileSpreadsheet } from 'lucide-react';
+import { Loader2, AlertCircle, Wand2, FileSpreadsheet, Download } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
 
 interface TestCaseDialogProps {
@@ -41,6 +41,7 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAttaching, setIsAttaching] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     if (isOpen && issue) {
@@ -82,6 +83,7 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
     setError(null);
     setIsLoading(false);
     setIsAttaching(false);
+    setIsDownloading(false);
     onClose();
   }, [onClose]);
 
@@ -117,6 +119,36 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
       });
     } finally {
       setIsAttaching(false);
+    }
+  };
+
+  const handleDownloadExcel = async () => {
+    if (!issue || generatedTestCases.length === 0) return;
+    setIsDownloading(true);
+    try {
+        const buffer = await convertTestCasesToExcel(generatedTestCases);
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `test-cases-${issue.key}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        toast({
+            title: "Download Started",
+            description: "Your test cases Excel file is downloading.",
+        });
+    } catch (err: any) {
+        console.error("Failed to download excel file", err);
+        toast({
+            title: "Download Failed",
+            description: "Could not create the Excel file for download.",
+            variant: "destructive",
+        });
+    } finally {
+        setIsDownloading(false);
     }
   };
 
@@ -163,7 +195,11 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
         <DialogFooter className="p-6 border-t bg-background">
           <div className="flex flex-col sm:flex-row items-center justify-end w-full gap-4">
             <div className="flex gap-2">
-              <Button variant="outline" onClick={handleDialogClose} disabled={isAttaching}>Cancel</Button>
+              <Button variant="outline" onClick={handleDialogClose} disabled={isAttaching || isDownloading}>Cancel</Button>
+              <Button onClick={handleDownloadExcel} variant="secondary" disabled={isDownloading || generatedTestCases.length === 0}>
+                {isDownloading ? (<Loader2 className="mr-2 h-4 w-4 animate-spin" />) : (<Download className="mr-2 h-4 w-4" />)}
+                {isDownloading ? 'Downloading...' : 'Download as Excel'}
+              </Button>
               <Button onClick={handleAttachToJira} disabled={isAttaching || generatedTestCases.length === 0}>
                 {isAttaching ? (<Loader2 className="mr-2 h-4 w-4 animate-spin" />) : (<FileSpreadsheet className="mr-2 h-4 w-4" />)}
                 {isAttaching ? 'Attaching...' : 'Attach as Excel File'}
@@ -175,3 +211,5 @@ export function TestCaseDialog({ issue, isOpen, onClose }: TestCaseDialogProps) 
     </Dialog>
   );
 }
+
+    
