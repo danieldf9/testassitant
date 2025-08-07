@@ -67,13 +67,14 @@
     - The user can upload a PDF requirements document.
     - The user can provide optional AI hints, such as target user personas or desired output format.
     - An AI flow will analyze the document and draft a hierarchical structure of Jira tickets (Epics, Stories, Tasks, Sub-tasks).
-    - The AI must generate comprehensive descriptions and acceptance criteria for each ticket, embedding the criteria within the description field.
+    - The AI must generate comprehensive descriptions. For Stories and Tasks, it should generate a detailed list of Acceptance Criteria and include it within the main 'description' field under a heading like "## Acceptance Criteria". For other types, all information should be in the description. The AI should be strictly forbidden from using a separate `acceptanceCriteria` field in its JSON output.
     - The drafted ticket hierarchy must be displayed in an editable tree view where the user can modify summaries, descriptions, and ticket types, or delete tickets.
     - Upon confirmation, the system will create all tickets in Jira, correctly establishing the parent-child relationships (e.g., Sub-tasks linked to Stories, Stories linked to Epics).
 
 ## 3. Non-Functional Requirements
 
 - **UI/UX**: The application will use a clean, modern, and responsive design built with ShadCN UI components and Tailwind CSS. The color scheme is based on soft blues and violets to create a calm and productive feel.
+    - **Component Styling**: Buttons and Cards should have a subtle "lift" effect on hover (slight upward translation and increased shadow) to feel more interactive. Input fields should have a modern, clean design.
 - **Performance**: API calls should be efficient, and the UI should feel responsive. Loading states must be used for all asynchronous operations.
-- **Error Handling**: All interactions with the Jira API or AI services must have robust error handling to provide clear feedback to the user.
+- **Error Handling**: All interactions with the Jira API or AI services must have robust error handling to provide clear feedback to the user. This includes handling cases where Jira API fields are not available on specific screens by making the backend logic more defensive. For document import, use a robust Markdown-to-ADF converter for Jira descriptions.
 - **Technology Stack**: The application is a Next.js web app, using React for the frontend, Genkit for AI flows, and TypeScript.
